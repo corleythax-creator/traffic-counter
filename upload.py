@@ -28,6 +28,8 @@ VEHICLES = {2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
 NAMES = {0: "person", **VEHICLES}  # people are counted separately from vehicles
 PERSON_MIN = 0.25  # confidence needed to count a person (anywhere in the frame)
 MODEL_NAME = "yolo11m.pt"
+# Counts that came from capture.py --detect (legacy) were made by this model, not MODEL_NAME
+CAPTURE_MODEL = "yolo11n.pt"
 IMGSZ = 960
 FALLBACK_ZONE = [(0, 0.25), (1, 0.25), (1, 1), (0, 1)]  # used when a camera view no longer matches
 DET_FLOOR = 0.10
@@ -270,7 +272,7 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20, keep_images
         for r in chunk:
             ms = int(r["epoch_ms"])
             counts = {v: to_int(r.get(v)) for v in VEHICLES.values()}
-            total = to_int(r.get("total")); brightness = thr = people = None; tag = MODEL_NAME if total is not None else None
+            total = to_int(r.get("total")); brightness = thr = people = None; tag = CAPTURE_MODEL if total is not None else None
             img = out / r["file"]
             if not img.exists() and total is None:
                 continue  # image already deleted and nothing to add: keep what's in Supabase
