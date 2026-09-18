@@ -116,7 +116,7 @@ footer p + p{margin-top:8px}
   </section>
 
   <footer>
-    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Lakeland Dr S at Treetops is recorded continuously from a home computer; the other cameras are sampled for about 4 minutes every 15 minutes. People are counted anywhere in each frame, separately from vehicles.</p>
+    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles.</p>
     <p id="methodNote"></p>
     <p>Source: MDOT (Mississippi Department of Transportation) traffic cameras at mdottraffic.com.</p>
     <p style="margin-top:10px"><button class="refresh" id="refreshBtn">Refresh now</button></p>
@@ -208,7 +208,7 @@ function render(d){
       (x.people_avg != null ? ", avg " + Number(x.people_avg).toFixed(1) : "") : "";
   });
   $("methodNote").textContent = oldModel ?
-    "Lakeland Dr S at Treetops is still counted with the older method (whole image only), which misses more vehicles in heavy traffic, so its numbers run lower than the other cameras. It will match once the home computer runs the new upload.py." : "";
+    "Lakeland Dr S at Treetops's older frames were counted with an earlier method (whole image only) that misses more vehicles in heavy traffic; new frames use the same method as the other cameras." : "";
   drawSeries(now); drawHours(); drawVideo(now);
 }
 
