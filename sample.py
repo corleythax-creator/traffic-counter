@@ -25,6 +25,10 @@ for n, c in enumerate(cams):
     cfg = CAMERAS[c]
     procs.append(subprocess.Popen([sys.executable, "capture.py", "--host", cfg["host"], "--stream", cfg["stream"],
                                    "--out", f"cam_{c}", "--interval", str(INTERVAL), "--hours", str(minutes / 60)]))
+# live-video cameras (cameras.json "video") count line crossings while the snapshots run
+video_cams = list(json.loads(_cfg.read_text()).get("video", {})) if _cfg.exists() else []
+video_procs = [(v, subprocess.Popen([sys.executable, "video.py", "--camera", v,
+                                     "--seconds", str(max(60, minutes * 60 - 30))])) for v in video_cams]
 for p in procs:
     p.wait()
 
@@ -34,4 +38,7 @@ for c in cams:
     print(r.stdout.strip()); print(r.stderr.strip()[-2000:], file=sys.stderr)
     if "upload failed" in r.stdout or r.returncode != 0:
         failed += 1
+for v, p in video_procs:
+    if p.wait() != 0:
+        print(f"video count failed for {v}"); failed += 1
 sys.exit(1 if failed else 0)
