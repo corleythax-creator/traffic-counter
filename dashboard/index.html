@@ -55,13 +55,18 @@ a.sign:focus-visible{outline:3px solid var(--c2);outline-offset:3px}
 .avgs div + div{border-left:1px solid rgba(255,255,255,.35)}
 .avgs b{display:block;font-size:1.15rem;font-weight:800;line-height:1.1}
 .avgs span{font-size:.72rem;opacity:.9}
-.spark{grid-area:spark;border-top:1px solid rgba(255,255,255,.35);padding-top:6px}
-.spark svg{display:block;width:100%;height:34px}
-.spark .bar{fill:rgba(255,255,255,.85)}
-.spark .bar.last{fill:var(--sign-ink)}
-.spark .base{fill:rgba(255,255,255,.45)}
-.spark .base.off{fill:rgba(255,255,255,.14)}
-.spark .sl{display:flex;justify-content:space-between;font-size:.68rem;opacity:.9;margin-top:3px}
+.spark{grid-area:spark;border-top:1px solid rgba(255,255,255,.35);padding-top:8px}
+.spark .plot{position:relative;display:flex;align-items:flex-end;gap:2px;height:48px}
+.spark .col{flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%;
+  border-bottom:1px solid rgba(255,255,255,.55)}
+.spark .col.off{border-bottom-color:rgba(255,255,255,.14)}
+.spark .col i{display:block;width:100%;max-width:14px;min-height:2px;border-radius:3px 3px 0 0;
+  background:rgba(255,255,255,.58)}
+.spark .col i.hi{background:rgba(255,255,255,.96)}
+.spark .ref{position:absolute;left:0;right:0;border-top:1px dashed rgba(255,255,255,.6);pointer-events:none}
+.spark .sl{display:flex;justify-content:space-between;gap:10px;font-size:.7rem;margin-top:4px}
+.spark .sl .read{font-weight:600}
+.spark .sl .ax{opacity:.72;white-space:nowrap}
 .chip{position:absolute;top:10px;right:12px;width:28px;height:6px;border-radius:3px;background:var(--chip)}
 .legend{grid-area:legend;font-weight:800;font-size:1.05rem;line-height:1.1;align-self:start}
 .legend span{display:block;font-weight:600;font-size:.8em;opacity:.9;margin-top:2px}
@@ -139,7 +144,7 @@ footer p + p{margin-top:8px}
   </section>
 
   <footer>
-    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. The bars on each camera show the last 15 minutes one minute at a time; a blank slot is a minute with no frames, not a minute with no traffic.</p>
+    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. The bars on each camera show the last 15 minutes one minute at a time, with the past hour's average drawn through them as a dashed line; a blank slot is a minute with no frames, not a minute with no traffic.</p>
     <p id="methodNote"></p>
     <p>Source: MDOT (Mississippi Department of Transportation) traffic cameras at mdottraffic.com.</p>
     <p style="margin-top:10px"><button class="refresh" id="refreshBtn">Refresh now</button></p>
@@ -178,37 +183,58 @@ function ago(ms){ const m = Math.round(ms/60000); if (m < 1) return "just now"; 
 // Snapshot thumbnails refresh in 15-second slots so viewers share cached images
 const snapSlot = () => Math.floor(Date.now() / 15000);
 
-// One bar per minute for the last 15 minutes on each sign card, oldest at the left.
-// Each minute gets a baseline segment: bright when the minute was sampled, dim when
-// it was not. A sampled minute with no vehicles still shows a nub above its baseline,
-// so a quiet minute never looks like an unsampled one -- which matters because the
-// GitHub collector only covers about 4 minutes in every 15.
+// One bar per minute for the last 15 minutes, with the past hour's average drawn
+// through them as a dashed reference. The three averages above the chart say how
+// busy it is; the chart's job is the part they can't show -- whether the last
+// quarter hour is building or easing against the hour behind it, and whether that
+// came from a steady climb or one spike. Bars above the hour line are bright, bars
+// below are dim, so the split reads without needing the line traced by eye. With no
+// hour to compare against yet there is no split, so every bar stays bright.
+// Each minute keeps a baseline segment: bright when the minute was sampled, dim
+// when it was not, and a sampled minute with no vehicles still shows a 2px nub --
+// a quiet minute must never look like an unsampled one, because the GitHub
+// collector only covers about 4 minutes in every 15.
 const SPARK_MIN = 15;
-function sparkHtml(rows, now){
+
+function readTrend(avg15, avg60){
+  if (avg15 == null || avg60 == null) return "Waiting on an hour to compare with";
+  const a = Number(avg15), b = Number(avg60);
+  if (b <= 0) return a > 0 ? "Picking up after an empty hour" : "No vehicles in the past hour";
+  const rel = (a - b) / b;
+  if (Math.abs(rel) < 0.12) return "Steady, level with the past hour";
+  const dir = rel > 0 ? "Building" : "Easing", side = rel > 0 ? "above" : "below";
+  // percentages swing wildly on small averages, so only quote one when there is a base
+  if (b < 1) return dir + ", " + side + " the past hour";
+  return dir + ", " + Math.round(Math.abs(rel) * 100) + "% " + side + " the past hour";
+}
+
+function sparkHtml(rows, now, avg15, avg60){
   const end = Math.floor(now / 60000), start = end - (SPARK_MIN - 1);
   const by = new Map();
   (rows || []).forEach(r => { const m = Math.floor(new Date(r.t).getTime() / 60000);
     if (m >= start && m <= end) by.set(m, r); });
-  const W = 100, H = 24, sw = W / SPARK_MIN, gap = 1.1, bw = sw - gap;
   const vals = [...by.values()].map(r => Number(r.avg)).filter(v => !isNaN(v));
-  const top = vals.length ? Math.max(...vals) : 0;
-  const max = Math.max(1, top);   // scale only; the label reports the real value
-  let bars = "";
-  for (let m = start, k = 0; m <= end; m++, k++){
-    const x = (k * sw + gap / 2).toFixed(2), bwf = bw.toFixed(2), r = by.get(m), at = fmtTime(m * 60000);
-    bars += `<rect class="base${r ? "" : " off"}" x="${x}" y="${H}" width="${bwf}" height="0.9"/>`;
-    if (!r){
-      bars += `<rect x="${x}" y="0" width="${bwf}" height="${H}" fill="transparent">` +
-              `<title>${esc(at + ": no frames")}</title></rect>`;
-      continue;
-    }
-    const v = Number(r.avg), h = Math.max(1.4, (v / max) * H);
-    bars += `<rect class="bar${m === end ? " last" : ""}" x="${x}" y="${(H - h).toFixed(2)}" width="${bwf}" height="${h.toFixed(2)}">` +
-            `<title>${esc(at + ": " + v.toFixed(1) + " avg, peak " + r.peak + " (" + r.n + (r.n === 1 ? " frame)" : " frames)"))}</title></rect>`;
+  const ref = avg60 == null ? null : Number(avg60);
+  // the hour line has to stay on the chart even when the last 15 minutes sit well under it
+  const top = Math.max(vals.length ? Math.max(...vals) : 0, ref || 0);
+  const scale = top > 0 ? top * 1.08 : 1;
+
+  let cols = "";
+  for (let m = start; m <= end; m++){
+    const r = by.get(m), at = fmtTime(m * 60000);
+    if (!r){ cols += `<div class="col off" title="${esc(at + ": no frames")}"></div>`; continue; }
+    const v = Number(r.avg), pct = Math.max(0, Math.min(100, (v / scale) * 100));
+    const tip = at + ": " + v.toFixed(1) + " avg, peak " + r.peak +
+                " (" + r.n + (r.n === 1 ? " frame)" : " frames)");
+    cols += `<div class="col" title="${esc(tip)}">` +
+            `<i class="${ref == null || v > ref ? "hi" : ""}" style="height:${pct.toFixed(1)}%"></i></div>`;
   }
-  const label = !vals.length ? "no frames" : top === 0 ? "no vehicles" : top.toFixed(1) + " max";
-  return `<svg viewBox="0 0 ${W} ${H + 0.8}" preserveAspectRatio="none" role="img" aria-label="Vehicles in view each minute for the last 15 minutes${vals.length ? ", highest " + top.toFixed(1) : ", no frames"}">${bars}</svg>` +
-         `<div class="sl"><span>Last 15 min</span><span>${esc(label)}</span></div>`;
+  const line = ref != null && top > 0
+    ? `<div class="ref" style="bottom:${Math.min(98, (ref / scale) * 100).toFixed(1)}%" ` +
+      `title="${esc("Past hour average: " + Number(avg60).toFixed(1))}"></div>` : "";
+  const read = vals.length ? readTrend(avg15, avg60) : "No frames in the last 15 minutes";
+  return `<div class="plot">${line}${cols}</div>` +
+         `<div class="sl"><span class="read">${esc(read)}</span><span class="ax">last 15 min</span></div>`;
 }
 
 // Sign cards, grouped by city
@@ -273,7 +299,7 @@ function render(d){
     }
     const fmtAvg = v => v == null ? "–" : Number(v).toFixed(1);
     $("v5_"+i).textContent = fmtAvg(x.avg_5); $("v15_"+i).textContent = fmtAvg(x.avg_15); $("v60_"+i).textContent = fmtAvg(x.avg_60);
-    $("sp"+i).innerHTML = sparkHtml(x.last15, now);
+    $("sp"+i).innerHTML = sparkHtml(x.last15, now, x.avg_15, x.avg_60);
     $("p"+i).textContent = x.peak ? "Peak " + x.peak.total + " at " + fmtTime(x.peak.at) : "";
     $("h"+i).textContent = (x.latest && x.latest.people != null) ? "People " + x.latest.people : "";
   });
