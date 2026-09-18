@@ -78,6 +78,9 @@ button:focus-visible{outline:3px solid var(--peak);outline-offset:2px}
 .tip[hidden]{display:none}
 .chart text{fill:var(--muted);font-family:inherit;font-size:12px}
 .avgline{stroke:var(--ink);stroke-width:1.25;stroke-dasharray:6 4;opacity:.5}
+.maline{stroke:var(--ink);stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+.macase{stroke:var(--panel);stroke-width:4.5;fill:none;stroke-linejoin:round;stroke-linecap:round;opacity:.85}
+.chart text.maTxt{text-anchor:start}
 .chart text.avgtxt{fill:var(--ink);font-size:11px;font-weight:700;
   paint-order:stroke;stroke:var(--panel);stroke-width:3.5px;stroke-linejoin:round}
 .note{font-size:.88rem;color:var(--muted);margin-top:8px;max-width:70ch}
@@ -223,15 +226,49 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":
 
 function boxW(id){ const el = $(id); return Math.max(260, Math.floor(el.clientWidth - 20)); }
 
+// A centred moving average over the bars, weighted by each bucket's frame count so
+// a bucket built from one frame cannot swing the curve as hard as one built from
+// five. Centred rather than trailing: this is read as the shape of the period, not
+// as a signal to act on, so lagging it half a window would just misplace the peaks.
+// The path breaks across a real gap instead of ruling a straight line through hours
+// when nothing was captured.
+function movingAvg(pts, spanMs, gapMs, x, y){
+  if (pts.length < 3) return {path: "", last: null};
+  const half = spanMs / 2;
+  let lo = 0, hi = 0, wsum = 0, nsum = 0, d = "", pen = "M", first = null, last = null;
+  for (let i = 0; i < pts.length; i++){
+    const t = pts[i].t;
+    while (hi < pts.length && pts[hi].t <= t + half){ wsum += pts[hi].avg * pts[hi].n; nsum += pts[hi].n; hi++; }
+    while (lo < pts.length && pts[lo].t < t - half){ wsum -= pts[lo].avg * pts[lo].n; nsum -= pts[lo].n; lo++; }
+    if (i && pts[i].t - pts[i-1].t > gapMs) pen = "M";
+    if (!nsum){ pen = "M"; continue; }
+    const v = wsum / nsum;
+    d += `${pen}${x(t).toFixed(1)} ${y(v).toFixed(1)}`; pen = "L";
+    if (!first) first = {t, v};
+    last = {t, v};
+  }
+  return {path: d, first, last};
+}
+
+// Smoothing window: about a twenty-fourth of what is on screen, never under three
+// buckets, rounded to whole minutes so the label can name it plainly.
+function smoothingMinutes(spanSec, bucketSec){
+  return Math.max(3, Math.round(Math.max(spanSec / 24, bucketSec * 3) / 60));
+}
+const smoothingLabel = m => m < 60 ? m + "-min"
+  : (m % 60 === 0 ? m / 60 : (m / 60).toFixed(1)) + "-hr";
+
 // The average for the whole period, drawn across the plot. Dashed and neutral so it
 // reads as an annotation rather than another gridline (those are solid and recessive)
 // or another bar: it is the level each bar should be compared against.
 function avgRule(v, ymax, geo, label){
-  if (v == null || !(v > 0) || !(ymax > 0)) return "";
+  if (v == null || !(v > 0) || !(ymax > 0)) return {line: "", text: ""};
   const {L, R, T, ph, W} = geo, yy = T + ph - Math.min(v, ymax) / ymax * ph;
   const room = yy - T > 15;  // keep the caption inside the plot when the line runs high
-  return `<line class="avgline" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/>` +
-         `<text class="avgtxt" x="${W - R}" y="${(room ? yy - 5 : yy + 13).toFixed(1)}" text-anchor="end">${esc(label)}</text>`;
+  return {
+    line: `<line class="avgline" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/>`,
+    text: `<text class="avgtxt" x="${W - R}" y="${(room ? yy - 5 : yy + 13).toFixed(1)}" text-anchor="end">${esc(label)}</text>`
+  };
 }
 
 const scrub = {};
@@ -271,13 +308,20 @@ function drawSeries(series, now, windowAvg){
   const frames = pts.reduce((sum, p) => sum + p.n, 0);
   const periodAvg = windowAvg != null ? Number(windowAvg)
     : frames ? pts.reduce((sum, p) => sum + p.avg * p.n, 0) / frames : null;
-  const rule = periodAvg == null ? ""
+  const rule = periodAvg == null ? {line: "", text: ""}
     : avgRule(periodAvg, ymax, {L, R, T, ph, W}, short + " avg " + periodAvg.toFixed(2));
-  $("chart").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame ${label} over the last ${interval}${periodAvg == null ? "" : ", with the " + short + " average of " + periodAvg.toFixed(2) + " marked"}">${g}${bars}${rule}${guide}</svg>`;
+  const maMin = smoothingMinutes(WINDOWS[win].span, bucket);
+  const ma = movingAvg(pts, maMin * 60000, bucket * 1000 * 3, x, y);
+  // cased: a panel-coloured stroke underneath keeps the curve legible over dense bars
+  const maCurve = !ma.path ? "" : `<path class="macase" d="${ma.path}"/><path class="maline" d="${ma.path}"/>`;
+  const maText = !ma.path ? "" :
+    `<text class="avgtxt maTxt" x="${L + 2}" y="${(y(ma.first.v) - 8 < T ? y(ma.first.v) + 14 : y(ma.first.v) - 8).toFixed(1)}">${esc(smoothingLabel(maMin) + " moving avg")}</text>`;
+  $("chart").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame ${label} over the last ${interval}${periodAvg == null ? "" : ", with the " + short + " average of " + periodAvg.toFixed(2) + " marked"}${ma.path ? " and a " + smoothingLabel(maMin) + " moving average" : ""}">${g}${bars}${maCurve}${rule.line}${maText}${rule.text}${guide}</svg>`;
   scrub.chart = {W, bars: meta};
   const best = pts.find(p => p.avg === maxAvg);
   $("chartNote").textContent = "Each bar is the average vehicles per frame " + label +
-    (periodAvg == null ? ". " : "; the dashed line is the " + short + " average, " + periodAvg.toFixed(2) + ". ") + "Busiest: " +
+    (periodAvg == null ? ". " : "; the dashed line is the " + short + " average, " + periodAvg.toFixed(2) + ". ") +
+    (ma.path ? "The solid line is a " + smoothingLabel(maMin) + " moving average, which is the shape to read rather than any single bar. " : "") + "Busiest: " +
     (win === "7d" ? fmtDay(best.t) + " " : "") + fmtTime(best.t) + " at " + best.avg.toFixed(2) + " (highlighted). Touch and slide across the chart to read each bar; gaps mean no frames were captured.";
 }
 
@@ -305,8 +349,9 @@ function drawHours(hourly){
   // this chart's period is everything recorded, so weight each hour by its frame count
   const seen = hourly.reduce((sum, h) => sum + Number(h.n), 0);
   const allAvg = seen ? hourly.reduce((sum, h) => sum + Number(h.avg) * Number(h.n), 0) / seen : null;
-  const rule = allAvg == null ? "" : avgRule(allAvg, ymax, {L, R, T, ph, W}, "all-day avg " + allAvg.toFixed(2));
-  $("hours").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame by hour of day${allAvg == null ? "" : ", with the all-day average of " + allAvg.toFixed(2) + " marked"}">${g}${rule}${guide}</svg>`;
+  const rule = allAvg == null ? {line: "", text: ""}
+    : avgRule(allAvg, ymax, {L, R, T, ph, W}, "all-day avg " + allAvg.toFixed(2));
+  $("hours").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame by hour of day${allAvg == null ? "" : ", with the all-day average of " + allAvg.toFixed(2) + " marked"}">${g}${rule.line}${rule.text}${guide}</svg>`;
   scrub.hours = {W, bars: meta};
 }
 
