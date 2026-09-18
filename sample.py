@@ -2,13 +2,17 @@
 """One sampling run for GitHub Actions: capture each camera for a few minutes
 in parallel, then count and upload.
 
-The cameras to sample are listed in SAMPLE_CAMERAS below (keys from upload.py).
-This list takes precedence over the CAMERAS variable in the workflow file, so
-cameras can be added by editing this file alone."""
-import os, subprocess, sys, time
+The cameras to sample are listed in SAMPLE_CAMERAS below plus the "sample" list
+in cameras.json (keys from upload.py or cameras.json). This takes precedence over
+the CAMERAS variable in the workflow file."""
+import json, os, subprocess, sys, time
+from pathlib import Path
 from upload import CAMERAS
 
 SAMPLE_CAMERAS = ["jackson-e-fraternity", "jackson-w-fraternity", "lakeland-n-airport", "university-w-lamar"]
+_cfg = Path(__file__).with_name("cameras.json")
+if _cfg.exists():  # cameras.json can add to the list without editing this file
+    SAMPLE_CAMERAS += [c for c in json.loads(_cfg.read_text()).get("sample", []) if c not in SAMPLE_CAMERAS]
 INTERVAL = 5  # seconds between grabs
 
 cams = SAMPLE_CAMERAS or [c.strip() for c in os.environ.get("CAMERAS", "").split(",") if c.strip()]

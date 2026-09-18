@@ -1,0 +1,10 @@
+{
+  "cameras": {
+    "lamar-n-university": {
+      "name": "Lamar Blvd N at University Ave", "stream": "060202", "host": "streamingjxn4",
+      "zone": [[0, 0.781], [0.25, 0.719], [0.422, 0.635], [0.617, 0.4375], [0.773, 0.24], [0.867, 0.24],
+               [0.8125, 0.625], [0.789, 0.875], [1, 0.917], [1, 1], [0, 1]]
+    }
+  },
+  "sample": ["lamar-n-university"]
+}

@@ -47,6 +47,11 @@ CAMERAS = {
                              "zone": [(0.195, 0.177), (0.258, 0.177), (0.469, 0.354), (0.688, 0.552), (1, 0.583), (1, 1),
                                       (0.336, 1), (0.367, 0.688), (0.3125, 0.479)]},
 }
+# Extra cameras (and zones) can be listed in cameras.json next to this script
+_extra = Path(__file__).with_name("cameras.json")
+if _extra.exists():
+    CAMERAS.update({k: {**v, "zone": [tuple(p) for p in v["zone"]]}
+                    for k, v in json.loads(_extra.read_text()).get("cameras", {}).items()})
 TILE_ONLY_MIN = 0.30   # vehicles found only in zoomed tiles need more confidence
 FLAT_MAX_H = 14        # boxes under this many pixels tall and much wider than tall are road markings
 EDGE_MIN = 0.35        # low-confidence boxes touching two image edges are usually pavement or shadow
