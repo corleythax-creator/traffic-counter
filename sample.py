@@ -8,7 +8,7 @@ cameras can be added by editing this file alone."""
 import os, subprocess, sys, time
 from upload import CAMERAS
 
-SAMPLE_CAMERAS = ["jackson-e-fraternity", "jackson-w-fraternity", "lakeland-n-airport"]
+SAMPLE_CAMERAS = ["jackson-e-fraternity", "jackson-w-fraternity", "lakeland-n-airport", "university-w-lamar"]
 INTERVAL = 5  # seconds between grabs
 
 cams = SAMPLE_CAMERAS or [c.strip() for c in os.environ.get("CAMERAS", "").split(",") if c.strip()]

@@ -13,6 +13,9 @@ or zooms move the counting zone to follow, and a big change is flagged
 
 Safe to re-run and safe while capture.py is running: it resumes after the last
 uploaded frame (cam folder/.last_upload) and overwrites instead of duplicating.
+Each image is deleted once its counts are safely in Supabase (use --keep-images
+to keep them); frames whose image is gone are never re-uploaded, so recounting
+can't blank out existing data.
 Needs SUPABASE_URL and SUPABASE_KEY in a .env file next to this script.
 
   Lakeland Dr S (home):  python upload.py --every 60
@@ -22,6 +25,8 @@ import argparse, csv, json, os, time, urllib.request
 from pathlib import Path
 
 VEHICLES = {2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
+NAMES = {0: "person", **VEHICLES}  # people are counted separately from vehicles
+PERSON_MIN = 0.25  # confidence needed to count a person (anywhere in the frame)
 MODEL_NAME = "yolo11m.pt"
 IMGSZ = 960
 FALLBACK_ZONE = [(0, 0.25), (1, 0.25), (1, 1), (0, 1)]  # used when a camera view no longer matches
@@ -38,6 +43,9 @@ CAMERAS = {
                              "zone": [(0, 0.875), (0.672, 0.29), (0.906, 0.29), (0.78, 0.625), (0.625, 1), (0, 1)]},
     "lakeland-n-airport":   {"name": "Lakeland Dr N at Airport Rd", "stream": "010102", "host": "streamingjxn2",
                              "zone": [(0.344, 0.23), (0.734, 0.23), (1, 0.427), (1, 1), (0, 1), (0, 0.69), (0.36, 0.545), (0.347, 0.23)]},
+    "university-w-lamar":   {"name": "University W at Lamar", "stream": "060204", "host": "streamingjxn4",
+                             "zone": [(0.195, 0.177), (0.258, 0.177), (0.469, 0.354), (0.688, 0.552), (1, 0.583), (1, 1),
+                                      (0.336, 1), (0.367, 0.688), (0.3125, 0.479)]},
 }
 TILE_ONLY_MIN = 0.30   # vehicles found only in zoomed tiles need more confidence
 FLAT_MAX_H = 14        # boxes under this many pixels tall and much wider than tall are road markings
@@ -100,9 +108,9 @@ def _overlap(a, b):
 
 
 def detect(model, path, tiles=False):
-    """Returns ([(x1, y1, x2, y2, conf, class, full_pass, w_px, h_px), ...] with box
+    """Returns ([(x1, y1, x2, y2, conf, class, full_pass, w_px, h_px, edges), ...] with box
     coordinates as 0-1 fractions, and mean brightness). full_pass is True when the
-    whole-image pass also found the vehicle."""
+    whole-image pass also found the object."""
     import numpy as np
     from PIL import Image
     img = Image.open(path).convert("RGB"); W, H = img.size
@@ -110,7 +118,7 @@ def detect(model, path, tiles=False):
     found = []
 
     def run(a):
-        r = model(a[:, :, ::-1], conf=DET_FLOOR, classes=list(VEHICLES), imgsz=size, verbose=False)[0]
+        r = model(a[:, :, ::-1], conf=DET_FLOOR, classes=list(NAMES), imgsz=size, verbose=False)[0]
         return zip(r.boxes.xyxy.tolist(), r.boxes.conf.tolist(), r.boxes.cls.tolist())
 
     size = IMGSZ
@@ -139,7 +147,7 @@ def detect(model, path, tiles=False):
         x1, y1, x2, y2, c, k = d
         fp = any(d is f or _overlap(d, f)[0] > 0.3 for f in full)
         edges = (x1 < 2) + (y1 < 2) + (x2 > W - 2) + (y2 > H - 2)
-        dets.append((x1 / W, y1 / H, x2 / W, y2 / H, c, VEHICLES[k], fp, x2 - x1, y2 - y1, edges))
+        dets.append((x1 / W, y1 / H, x2 / W, y2 / H, c, NAMES[k], fp, x2 - x1, y2 - y1, edges))
     return dets, float(arr.mean())
 
 
@@ -232,7 +240,7 @@ def to_int(v):
 
 
 # ---------- main loop ----------
-def run_once(out, url, key, model, cam, conf, tiles, check_every=20):
+def run_once(out, url, key, model, cam, conf, tiles, check_every=20, keep_images=False):
     base_zone = CAMERAS[cam]["zone"]
     try:
         ref = load_ref(url, key, cam)
@@ -256,8 +264,10 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20):
         for r in chunk:
             ms = int(r["epoch_ms"])
             counts = {v: to_int(r.get(v)) for v in VEHICLES.values()}
-            total = to_int(r.get("total")); brightness = thr = None; tag = MODEL_NAME if total is not None else None
+            total = to_int(r.get("total")); brightness = thr = people = None; tag = MODEL_NAME if total is not None else None
             img = out / r["file"]
+            if not img.exists() and total is None:
+                continue  # image already deleted and nothing to add: keep what's in Supabase
             if img.exists():
                 if _is_night(img):
                     view, zone = "night", (ref["zone"] if ref else base_zone)
@@ -269,10 +279,13 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20):
                         view, zone = check_view(ref, img); since_check = 0
                     since_check += 1
                 found, brightness = detect(model, img, tiles)
-                counts = {v: 0 for v in VEHICLES.values()}
+                counts = {v: 0 for v in VEHICLES.values()}; people = 0
                 for j, (x1, y1, x2, y2, p, name, fp, wpx, hpx, edges) in enumerate(found):
                     inside = in_zone(zone, (x1 + x2) / 2, y2)
-                    if inside and counts_as_vehicle(p, fp, wpx, hpx, conf, edges):
+                    if name == "person":
+                        if p >= PERSON_MIN and y2 < 0.93:  # anywhere except the name overlay
+                            people += 1
+                    elif inside and counts_as_vehicle(p, fp, wpx, hpx, conf, edges):
                         counts[name] += 1
                     dets.append({"camera": cam, "epoch_ms": ms, "idx": j, "class": name,
                                  "conf": round(p, 4), "x1": round(x1, 4), "y1": round(y1, 4),
@@ -283,10 +296,12 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20):
                 counted.append(ms)
             frames.append({"camera": cam, "epoch_ms": ms, "captured_at": r["timestamp_local"],
                            "file": r["file"], "bytes": to_int(r.get("bytes")), "md5": r["md5"],
-                           **counts, "total": total, "model": tag,
+                           **counts, "total": total, "people": people, "model": tag,
                            "brightness": brightness, "conf_threshold": thr,
                            "view_status": view if img.exists() else None})
 
+        if not frames:
+            continue
         upsert(url, key, "traffic_frames", frames, "camera,epoch_ms")
         for k in range(0, len(counted), 200):
             ids = ",".join(map(str, counted[k:k + 200]))
@@ -294,6 +309,12 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20):
         for k in range(0, len(dets), 1000):
             upsert(url, key, "traffic_detections", dets[k:k + 1000], "camera,epoch_ms,idx")
         state.write_text(str(frames[-1]["epoch_ms"]))
+        if not keep_images:  # counts and detections are saved; the pictures aren't needed
+            for fr in frames:
+                try:
+                    (out / fr["file"]).unlink(missing_ok=True)
+                except OSError:
+                    pass
         print(f"{time.strftime('%H:%M')} uploaded {i + len(chunk)}/{len(rows)} frames "
               f"({len(dets)} detections in this batch)")
 
@@ -305,6 +326,7 @@ def main():
     ap.add_argument("--conf", type=float, default=0.20, help="confidence needed to count a vehicle")
     ap.add_argument("--tiles", action="store_true", help="also check zoomed-in tiles (slower; the medium model rarely needs it)")
     ap.add_argument("--every", type=float, default=0, help="minutes between runs; 0 = once")
+    ap.add_argument("--keep-images", action="store_true", help="keep frame images after uploading")
     a = ap.parse_args()
 
     url, key = load_env()
@@ -313,7 +335,7 @@ def main():
     print(f"Counting {CAMERAS[a.camera]['name']} from {a.out}")
     while True:
         try:
-            run_once(Path(a.out), url, key, model, a.camera, a.conf, a.tiles)
+            run_once(Path(a.out), url, key, model, a.camera, a.conf, a.tiles, keep_images=a.keep_images)
         except Exception as e:
             print(f"upload failed: {e}")
         if not a.every:
