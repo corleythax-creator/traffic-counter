@@ -4,6 +4,14 @@
       "name": "Lamar Blvd N at University Ave", "stream": "060202", "host": "streamingjxn4",
       "zone": [[0, 0.781], [0.25, 0.719], [0.422, 0.635], [0.617, 0.4375], [0.773, 0.24], [0.867, 0.24],
                [0.8125, 0.625], [0.789, 0.875], [1, 0.917], [1, 1], [0, 1]]
+    },
+    "jackson-e-fraternity": {
+      "name": "Jackson E at Frtrnty", "stream": "060106", "host": "streamingjxn4",
+      "zone": [[0.094, 0.229], [0.25, 0.229], [1, 0.781], [1, 1], [0.336, 1]]
+    },
+    "jackson-w-fraternity": {
+      "name": "Jackson W at Frtrnty", "stream": "060105", "host": "streamingjxn4",
+      "zone": [[0, 0.896], [0.797, 0.229], [0.922, 0.229], [0.82, 0.479], [0.734, 0.6875], [0.633, 1], [0, 1]]
     }
   },
   "sample": ["lamar-n-university", "lakeland-treetops"],
