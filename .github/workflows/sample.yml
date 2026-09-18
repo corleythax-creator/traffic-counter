@@ -26,6 +26,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          CAMERAS: jackson-e-fraternity,jackson-w-fraternity
           SAMPLE_MINUTES: "4"
         run: python sample.py

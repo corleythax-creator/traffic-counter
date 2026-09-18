@@ -3,8 +3,7 @@
 in parallel, then count and upload.
 
 The cameras to sample are listed in SAMPLE_CAMERAS below plus the "sample" list
-in cameras.json (keys from upload.py or cameras.json). This takes precedence over
-the CAMERAS variable in the workflow file."""
+in cameras.json (keys from upload.py or cameras.json)."""
 import json, os, subprocess, sys, time
 os.environ["TRAFFIC_SOURCE"] = "github"  # marks rows from the scheduled samples
 from pathlib import Path
@@ -16,7 +15,7 @@ if _cfg.exists():  # cameras.json can add to the list without editing this file
     SAMPLE_CAMERAS += [c for c in json.loads(_cfg.read_text()).get("sample", []) if c not in SAMPLE_CAMERAS]
 INTERVAL = 5  # seconds between grabs
 
-cams = SAMPLE_CAMERAS or [c.strip() for c in os.environ.get("CAMERAS", "").split(",") if c.strip()]
+cams = list(SAMPLE_CAMERAS)
 minutes = float(os.environ.get("SAMPLE_MINUTES", "4"))
 
 # Skip cameras that another computer (run_local.py) is already covering continuously
