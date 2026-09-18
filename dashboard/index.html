@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jackson-area traffic cameras</title>
+<meta name="description" content="Live vehicle counts from MDOT traffic cameras">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9EBE6; --panel:#F7F8F5; --ink:#1F2427; --muted:#5F676C; --rule:#CDD1CB;
+  --sign:#0E6B45; --sign-ink:#FFFFFF; --warn:#9A3B12;
+  --c1:#0E6B45; --c2:#C47F00; --c3:#2F5F98; --c4:#7A3E9D; --c5:#0F7C8C; --c6:#B5452F;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
+    --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
+  --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Overpass",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px;line-height:1.45;font-variant-numeric:tabular-nums}
+main{max-width:1040px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.35rem;font-weight:800;margin:0 0 4px}
+h2{font-size:1.15rem;font-weight:800;margin:0}
+p{margin:0}
+.lede{color:var(--muted);font-size:.95rem;margin-bottom:16px}
+
+.signs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.sign{background:var(--sign);color:var(--sign-ink);border-radius:12px;padding:5px}
+.sign-inner{border:3px solid var(--sign-ink);border-radius:8px;padding:12px 14px 12px;height:100%;
+  display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:end;position:relative}
+.chip{position:absolute;top:10px;right:12px;width:28px;height:6px;border-radius:3px;background:var(--chip)}
+.legend{font-weight:800;font-size:1.3rem;line-height:1.05}
+.legend span{display:block;font-weight:600;font-size:.72em;opacity:.9;margin-top:3px}
+.now{text-align:right}
+.now .n{font-weight:800;font-size:3.2rem;line-height:.9}
+.now .l{font-size:.8rem;opacity:.92}
+.meta{grid-column:1/-1;font-size:.82rem;opacity:.95;display:flex;flex-wrap:wrap;gap:4px 14px}
+.meta .st{display:flex;gap:6px;align-items:center;width:100%}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--sign-ink);flex:none}
+.dot.stale{background:#F0B429}
+
+section{margin-top:28px}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{font:inherit;font-size:.9rem;border:0;background:none;color:var(--ink);padding:6px 12px;cursor:pointer}
+.seg button + button{border-left:1px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--sign);color:var(--sign-ink);font-weight:600}
+button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
+.key{display:flex;gap:16px;flex-wrap:wrap;font-size:.88rem;color:var(--muted);margin-bottom:8px}
+.key i{display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.chart{position:relative;background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:12px 10px 6px;
+  touch-action:pan-y;-webkit-user-select:none;user-select:none;cursor:crosshair}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{fill:var(--muted);font-family:inherit;font-size:12px}
+.guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
+.tip{position:absolute;top:6px;left:0;background:var(--ink);color:var(--bg);font-size:.85rem;line-height:1.35;
+  padding:6px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:2}
+.tip strong{display:block}
+.tip i{display:inline-block;width:10px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.tip[hidden]{display:none}
+.note{font-size:.88rem;color:var(--muted);margin-top:8px;max-width:75ch}
+.msg{margin-top:16px;padding:12px 14px;border-left:4px solid var(--warn);background:var(--panel);border-radius:0 8px 8px 0}
+.msg[hidden]{display:none}
+.msg strong{display:block}
+.refresh{font:inherit;font-size:.9rem;border:1px solid var(--rule);background:var(--panel);color:var(--ink);
+  border-radius:8px;padding:6px 12px;cursor:pointer}
+footer{margin-top:32px;font-size:.85rem;color:var(--muted);max-width:75ch}
+footer p + p{margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Traffic cameras</h1>
+  <p class="lede" id="lede">Loading the latest counts…</p>
+
+  <div class="signs" id="signs"></div>
+  <div class="msg" id="msg" hidden role="status"><strong id="msgTitle"></strong><span id="msgBody"></span></div>
+
+  <section>
+    <div class="head">
+      <h2 id="chartTitle">Vehicles in view over time</h2>
+      <div class="seg" role="group" aria-label="Time window" id="seg">
+        <button data-w="6h" aria-pressed="true">6 hours</button>
+        <button data-w="24h" aria-pressed="false">24 hours</button>
+        <button data-w="7d" aria-pressed="false">7 days</button>
+      </div>
+    </div>
+    <div class="key" id="key1"></div>
+    <div class="chart" id="chart"></div>
+    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time.</p>
+  </section>
+
+  <section>
+    <div class="head"><h2>Live video: University Ave E at MS 7</h2><span class="lede" id="videoNow" style="margin:0"></span></div>
+    <div class="key" id="key3"></div>
+    <div class="chart" id="video"></div>
+    <p class="note">Vehicles per hour crossing a counting line on each road, from about 3.5 minutes of live video every 15 minutes. Unlike the snapshot cameras, this counts vehicles passing, not vehicles in view.</p>
+  </section>
+
+  <section>
+    <div class="head"><h2>Typical hour of the day</h2></div>
+    <div class="key" id="key2"></div>
+    <div class="chart" id="hours"></div>
+    <p class="note">Average vehicles per frame for each hour, across everything recorded so far. Fills in as the cameras run through full days.</p>
+  </section>
+
+  <footer>
+    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Lakeland Dr S at Treetops is recorded continuously from a home computer; the other cameras are sampled for about 4 minutes every 15 minutes. People are counted anywhere in each frame, separately from vehicles.</p>
+    <p id="methodNote"></p>
+    <p>Source: MDOT (Mississippi Department of Transportation) traffic cameras at mdottraffic.com.</p>
+    <p style="margin-top:10px"><button class="refresh" id="refreshBtn">Refresh now</button></p>
+  </footer>
+</main>
+
+<script>
+const TZ = "America/Chicago";
+const CAMS = [
+  {id:"lakeland-treetops",    a:"Lakeland Dr S", b:"at Treetops Blvd", color:"var(--c1)"},
+  {id:"jackson-e-fraternity", a:"Jackson E",     b:"at Frtrnty",       color:"var(--c2)"},
+  {id:"jackson-w-fraternity", a:"Jackson W",     b:"at Frtrnty",       color:"var(--c3)"},
+  {id:"lakeland-n-airport",   a:"Lakeland Dr N", b:"at Airport Rd",    color:"var(--c4)"},
+  {id:"university-w-lamar",   a:"University W",  b:"at Lamar",         color:"var(--c5)"},
+  {id:"lamar-n-university",   a:"Lamar Blvd N",  b:"at University Ave", color:"var(--c6)"}
+];
+const WINDOWS = {
+  "6h":  {interval:"6 hours", bucket:900,  span:21600,  label:"per 15 minutes"},
+  "24h": {interval:"24 hours",bucket:1800, span:86400,  label:"per 30 minutes"},
+  "7d":  {interval:"7 days",  bucket:7200, span:604800, label:"per 2 hours"}
+};
+let win = "6h", lastOk = 0, busy = false, pending = false, retried = false, lastData = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtTime = t => new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",minute:"2-digit"}).format(new Date(t));
+const fmtDay = t => new Intl.DateTimeFormat("en-US",{timeZone:TZ,weekday:"short",month:"short",day:"numeric"}).format(new Date(t));
+const fmtDayShort = t => new Intl.DateTimeFormat("en-US",{timeZone:TZ,month:"short",day:"numeric"}).format(new Date(t));
+function ago(ms){ const m = Math.round(ms/60000); if (m < 1) return "just now"; if (m < 60) return m + " min ago";
+  const h = Math.floor(m/60); return h + " hr " + (m%60) + " min ago"; }
+
+// Sign cards
+$("signs").innerHTML = CAMS.map((c, i) => `
+  <div class="sign" role="region" aria-label="${esc(c.a + ' ' + c.b)}">
+    <div class="sign-inner" style="--chip:${c.color}">
+      <span class="chip" aria-hidden="true"></span>
+      <div class="legend">${esc(c.a)}<span>${esc(c.b)}</span></div>
+      <div class="now"><div class="n" id="n${i}">–</div><div class="l">in view now</div></div>
+      <div class="meta">
+        <div class="st"><span class="dot" id="d${i}"></span><span id="s${i}">Loading…</span></div>
+        <span id="a${i}"></span><span id="p${i}"></span><span id="h${i}"></span>
+      </div>
+    </div>
+  </div>`).join("");
+const keyHtml = CAMS.map(c => `<span><i style="background:${c.color}"></i>${esc(c.a)}</span>`).join("");
+$("key1").innerHTML = keyHtml; $("key2").innerHTML = keyHtml;
+
+function showMsg(t, b){ $("msgTitle").textContent = t; $("msgBody").textContent = b || ""; $("msg").hidden = false; }
+function hideMsg(){ $("msg").hidden = true; }
+
+async function load(){
+  if (busy){ pending = true; return; }
+  busy = true;
+  try{
+    const r = await fetch("/api/traffic?w=" + encodeURIComponent(win), {cache: "no-store"});
+    if (!r.ok) throw new Error("Server returned " + r.status);
+    const d = await r.json();
+    if (!d || !d.cams) throw new Error("No data returned.");
+    lastOk = Date.now(); retried = false; hideMsg(); render(d);
+  }catch(err){
+    const keep = lastOk > 0;
+    showMsg(keep ? "Couldn't refresh; showing the last loaded data." : "Couldn't load traffic data.", " " + (err.message || "Try Refresh now in a minute."));
+    if (!keep) $("lede").textContent = "Not connected";
+    if (!retried){ retried = true; setTimeout(load, 5000 + Math.random()*3000); }
+  }
+  finally{ busy = false; if (pending){ pending = false; load(); } }
+}
+
+function render(d){
+  lastData = d;
+  const now = new Date(d.now).getTime(), cams = d.cams || {};
+  $("lede").textContent = "Updated " + fmtTime(now) + ". Refreshes every 2 minutes while open.";
+  let oldModel = false;
+  CAMS.forEach((c, i) => {
+    const x = cams[c.id] || {};
+    if (x.latest){
+      const age = now - new Date(x.latest.at).getTime(), stale = age > 75*60000;
+      $("n"+i).textContent = x.latest.total ?? "–";
+      $("d"+i).classList.toggle("stale", stale);
+      $("s"+i).textContent = "Latest " + fmtTime(x.latest.at) + " (" + ago(age) + ")" + (stale ? ", no new data for over an hour" : "")
+        + (x.latest.view === "changed" ? ". Camera was re-aimed; counting with a general zone" : "");
+      if (x.latest.model === "yolo11n.pt") oldModel = true;
+    } else {
+      $("n"+i).textContent = "–"; $("d"+i).classList.add("stale");
+      $("s"+i).textContent = "Waiting for the first upload";
+    }
+    $("a"+i).textContent = x.avg == null ? "" : "Avg " + Number(x.avg).toFixed(2) + " per frame";
+    $("p"+i).textContent = x.peak ? "Peak " + x.peak.total + " at " + fmtTime(x.peak.at) : "";
+    $("h"+i).textContent = (x.latest && x.latest.people != null) ? "People now " + x.latest.people +
+      (x.people_avg != null ? ", avg " + Number(x.people_avg).toFixed(1) : "") : "";
+  });
+  $("methodNote").textContent = oldModel ?
+    "Lakeland Dr S at Treetops is still counted with the older method (whole image only), which misses more vehicles in heavy traffic, so its numbers run lower than the other cameras. It will match once the home computer runs the new upload.py." : "";
+  drawSeries(now); drawHours(); drawVideo(now);
+}
+
+function boxW(id){ return Math.max(260, Math.floor($(id).clientWidth - 20)); }
+const scrub = {};
+
+function niceMax(v){ return Math.max(1, Math.ceil(v * 1.15 * 2) / 2); }
+
+function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax){
+  const pw = W-L-R, ph = H-T-B;
+  const x = v => L + (v - xMin) / (xMax - xMin) * pw, y = v => T + ph - v / ymax * ph;
+  let g = "";
+  for (let k = 0; k <= 4; k++){ const v = ymax*k/4, yy = y(v);
+    g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--rule)"/><text x="${L-6}" y="${yy+4}" text-anchor="end">${v % 1 ? v.toFixed(1) : v}</text>`; }
+  g += xLabel(x);
+  let lines = "";
+  series.forEach(s => {
+    // break the line where there is a gap bigger than 1.5 buckets
+    let path = "", prev = null;
+    s.pts.forEach(p => {
+      const cmd = (prev === null || p.x - prev > s.gap) ? "M" : "L";
+      path += `${cmd}${x(p.x).toFixed(1)},${y(p.v).toFixed(1)}`; prev = p.x;
+    });
+    if (path) lines += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    if (s.pts.length < 40) s.pts.forEach(p => { lines += `<circle cx="${x(p.x)}" cy="${y(p.v)}" r="2.5" fill="${s.color}"/>`; });
+  });
+  const marks = series.map((s, i) => `<circle class="mk" data-s="${i}" r="5" fill="${s.color}" stroke="var(--panel)" stroke-width="2" visibility="hidden"/>`).join("");
+  $(id).innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img">${g}${lines}<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>${marks}</svg>`;
+  scrub[id] = {W, xs: xs.map(v => ({v, px: x(v)})), series, y, x};
+}
+
+function drawSeries(now){
+  const d = lastData; if (!d) return;
+  const {bucket, span, label, interval} = WINDOWS[win];
+  $("chartTitle").textContent = "Vehicles in view, " + label;
+  const W = boxW("chart"), H = W < 500 ? 230 : 280, L = 40, R = 14, T = 12, B = 30;
+  const t0 = now - span*1000;
+  const series = CAMS.map(c => ({name: c.a, color: c.color, gap: bucket*1000*1.5,
+    pts: ((d.cams[c.id] || {}).series || []).map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n, peak: s.peak})).filter(p => !isNaN(p.v))}));
+  const all = series.flatMap(s => s.pts);
+  if (!all.length){ $("chart").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">No frames from any camera in the last ${interval}.</p>`; scrub.chart = null; return; }
+  const ymax = niceMax(Math.max(...all.map(p => p.v)));
+  const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
+  const ticks = Math.max(2, Math.min(6, Math.floor((W-L-R) / 95)));
+  const xLabel = x => { let g = ""; for (let i = 0; i <= ticks; i++){ const t = t0 + span*1000*i/ticks;
+    g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
+  drawLines("chart", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
+  scrub.chart.head = v => (win === "7d" ? fmtDay(v) + ", " : "") + fmtTime(v);
+}
+
+const VLINES = [{line:"University Ave", color:"var(--c2)"}, {line:"Ramp", color:"var(--c3)"}];
+$("key3").innerHTML = VLINES.map(v => `<span><i style="background:${v.color}"></i>${esc(v.line)}</span>`).join("");
+function drawVideo(now){
+  const d = lastData; if (!d) return;
+  const rows = (d.video || []).filter(r => r.camera === "university-e-ms7"), {span} = WINDOWS[win];
+  const W = boxW("video"), H = W < 500 ? 210 : 240, L = 44, R = 14, T = 12, B = 30, t0 = now - span*1000;
+  const series = VLINES.map(v => ({name: v.line, color: v.color, gap: 45*60*1000,
+    pts: rows.filter(r => r.line === v.line).map(r => ({x: new Date(r.t).getTime(), v: Math.round(r.veh / r.secs * 3600), n: r.veh}))}));
+  const all = series.flatMap(s => s.pts);
+  const last = rows.length ? rows[rows.length - 1].t : null;
+  $("videoNow").textContent = last ? "Latest run " + fmtTime(last) + ": " + series.map(s => { const p = s.pts.filter(q => q.x === new Date(last).getTime())[0]; return s.name + " " + (p ? p.v : "–") + "/hr"; }).join(", ") : "Waiting for the first run";
+  if (!all.length){ $("video").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No video counts in this window yet.</p>'; scrub.video = null; return; }
+  const ymax = Math.max(100, Math.ceil(Math.max(...all.map(p => p.v)) * 1.15 / 100) * 100);
+  const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
+  const ticks = Math.max(2, Math.min(6, Math.floor((W-L-R) / 95)));
+  const xLabel = x => { let g = ""; for (let i = 0; i <= ticks; i++){ const t = t0 + span*1000*i/ticks;
+    g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
+  drawLines("video", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
+  scrub.video.head = v => (win === "7d" ? fmtDay(v) + ", " : "") + fmtTime(v);
+  scrub.video.unit = "vehicles/hr";
+}
+
+function drawHours(){
+  const d = lastData; if (!d) return;
+  const W = boxW("hours"), H = W < 500 ? 190 : 220, L = 40, R = 14, T = 12, B = 28;
+  const series = CAMS.map(c => ({name: c.a, color: c.color, gap: 1.5,
+    pts: ((d.cams[c.id] || {}).hourly || []).map(h => ({x: h.hr, v: Number(h.avg), n: h.n}))}));
+  const all = series.flatMap(s => s.pts);
+  if (!all.length){ $("hours").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No data yet.</p>'; scrub.hours = null; return; }
+  const ymax = niceMax(Math.max(...all.map(p => p.v)));
+  const step = W < 500 ? 6 : 3;
+  const hl = h => h === 0 ? "12a" : h < 12 ? h + "a" : h === 12 ? "12p" : (h-12) + "p";
+  const xLabel = x => { let g = ""; for (let h = 0; h <= 23; h += step) g += `<text x="${x(h)}" y="${H-8}" text-anchor="middle">${hl(h)}</text>`; return g; };
+  const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
+  drawLines("hours", xs, series, xLabel, W, H, L, R, T, B, -0.5, 23.5, ymax);
+  scrub.hours.head = h => { const a = h % 12 || 12, b = (h + 1) % 12 || 12; return a + "–" + b + (h + 1 < 12 || h + 1 === 24 ? " AM" : " PM"); };
+}
+
+function showAt(id, i){
+  const st = scrub[id], box = $(id), svg = box.querySelector("svg"), tip = box.querySelector(".tip");
+  if (!st || !svg || !st.xs[i]) return;
+  const xv = st.xs[i].v, px = st.xs[i].px;
+  const gl = svg.querySelector(".guide"); gl.setAttribute("x1", px); gl.setAttribute("x2", px); gl.setAttribute("visibility", "visible");
+  tip.textContent = "";
+  const hd = document.createElement("strong"); hd.textContent = st.head(xv); tip.appendChild(hd);
+  st.series.forEach((s, k) => {
+    const p = s.pts.find(q => q.x === xv), mk = svg.querySelector(`.mk[data-s="${k}"]`);
+    const line = document.createElement("div"); const sw = document.createElement("i"); sw.style.background = s.color;
+    line.appendChild(sw);
+    if (p){ line.append(st.unit ? s.name + ": " + p.v + " " + st.unit + " (" + p.n + " counted)" : s.name + ": " + p.v.toFixed(2) + " avg" + (p.peak != null ? ", peak " + p.peak : ""));
+      mk.setAttribute("cx", st.x(p.x)); mk.setAttribute("cy", st.y(p.v)); mk.setAttribute("visibility", "visible"); }
+    else { line.append(s.name + ": no frames"); mk.setAttribute("visibility", "hidden"); }
+    tip.appendChild(line);
+  });
+  tip.hidden = false;
+  const r = svg.getBoundingClientRect(), br = box.getBoundingClientRect();
+  const left = r.left - br.left + px * r.width / st.W, tw = tip.offsetWidth;
+  tip.style.left = Math.min(Math.max(4, left - tw/2), br.width - tw - 4) + "px";
+}
+function hideAt(id){
+  const box = $(id), svg = box.querySelector("svg"), tip = box.querySelector(".tip");
+  if (svg){ const gl = svg.querySelector(".guide"); if (gl) gl.setAttribute("visibility", "hidden");
+    svg.querySelectorAll(".mk").forEach(m => m.setAttribute("visibility", "hidden")); }
+  if (tip) tip.hidden = true;
+}
+function attachScrub(id){
+  const box = $(id); let active = false;
+  const pick = e => {
+    const st = scrub[id], svg = box.querySelector("svg"); if (!st || !svg || !st.xs.length) return;
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * st.W / r.width;
+    let best = 0, bd = Infinity; st.xs.forEach((p, i) => { const dd = Math.abs(p.px - sx); if (dd < bd){ bd = dd; best = i; } });
+    showAt(id, best);
+  };
+  box.addEventListener("pointerdown", e => { if (!scrub[id]) return; active = true; try { box.setPointerCapture(e.pointerId); } catch(_){} pick(e); });
+  box.addEventListener("pointermove", e => { if (active || e.pointerType === "mouse") pick(e); });
+  box.addEventListener("pointerup", () => { active = false; });
+  box.addEventListener("pointercancel", () => { active = false; });
+  box.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !active) hideAt(id); });
+}
+attachScrub("chart"); attachScrub("hours"); attachScrub("video");
+document.addEventListener("pointerdown", e => { if (!e.target.closest(".chart")){ hideAt("chart"); hideAt("hours"); hideAt("video"); } });
+
+$("seg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-w]"); if (!b) return;
+  win = b.dataset.w;
+  $("seg").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  hideAt("chart"); load();
+});
+$("refreshBtn").addEventListener("click", () => { retried = false; load(); });
+let rz;
+new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { if (lastData){ drawSeries(new Date(lastData.now).getTime()); drawHours(); drawVideo(new Date(lastData.now).getTime()); } }, 120); }).observe(document.querySelector("main"));
+setInterval(() => { if (document.visibilityState === "visible") load(); }, 120000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastOk > 60000) load(); });
+
+load();
+</script>
+</body>
+</html>
