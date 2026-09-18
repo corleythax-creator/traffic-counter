@@ -37,6 +37,10 @@ p{margin:0}
 
 .signs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .sign{background:var(--sign);color:var(--sign-ink);border-radius:12px;padding:5px}
+a.sign{display:block;text-decoration:none;transition:transform .12s ease, box-shadow .12s ease}
+a.sign:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.18)}
+a.sign:focus-visible{outline:3px solid var(--c2);outline-offset:3px}
+.more{width:100%;font-weight:600;opacity:.9;margin-top:2px}
 .sign-inner{border:3px solid var(--sign-ink);border-radius:8px;padding:12px 14px 12px;height:100%;
   display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:end;position:relative}
 .chip{position:absolute;top:10px;right:12px;width:28px;height:6px;border-radius:3px;background:var(--chip)}
@@ -98,7 +102,7 @@ footer p + p{margin-top:8px}
     </div>
     <div class="key" id="key1"></div>
     <div class="chart" id="chart"></div>
-    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time.</p>
+    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time; tap a camera sign above for its minute-by-minute view.</p>
   </section>
 
   <section>
@@ -149,7 +153,7 @@ function ago(ms){ const m = Math.round(ms/60000); if (m < 1) return "just now"; 
 
 // Sign cards
 $("signs").innerHTML = CAMS.map((c, i) => `
-  <div class="sign" role="region" aria-label="${esc(c.a + ' ' + c.b)}">
+  <a class="sign" href="/camera.html?cam=${encodeURIComponent(c.id)}" aria-label="${esc(c.a + ' ' + c.b)}: minute-by-minute detail">
     <div class="sign-inner" style="--chip:${c.color}">
       <span class="chip" aria-hidden="true"></span>
       <div class="legend">${esc(c.a)}<span>${esc(c.b)}</span></div>
@@ -157,9 +161,10 @@ $("signs").innerHTML = CAMS.map((c, i) => `
       <div class="meta">
         <div class="st"><span class="dot" id="d${i}"></span><span id="s${i}">Loading…</span></div>
         <span id="a${i}"></span><span id="p${i}"></span><span id="h${i}"></span>
+        <span class="more">Minute by minute &rsaquo;</span>
       </div>
     </div>
-  </div>`).join("");
+  </a>`).join("");
 const keyHtml = CAMS.map(c => `<span><i style="background:${c.color}"></i>${esc(c.a)}</span>`).join("");
 $("key1").innerHTML = keyHtml; $("key2").innerHTML = keyHtml;
 
