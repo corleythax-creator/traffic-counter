@@ -30,6 +30,8 @@ CAMERAS = {
                              "zone": [(0.094, 0.3125), (0.39, 0.3125), (0.875, 0.73), (1, 0.81), (1, 1), (0.383, 1)]},
     "jackson-w-fraternity": {"name": "Jackson W at Frtrnty", "stream": "060105", "host": "streamingjxn4",
                              "zone": [(0, 0.875), (0.672, 0.29), (0.906, 0.29), (0.78, 0.625), (0.625, 1), (0, 1)]},
+    "lakeland-n-airport":   {"name": "Lakeland Dr N at Airport Rd", "stream": "010102", "host": "streamingjxn2",
+                             "zone": [(0.344, 0.23), (0.734, 0.23), (1, 0.427), (1, 1), (0, 1), (0, 0.69), (0.36, 0.545), (0.347, 0.23)]},
 }
 TILE_ONLY_MIN = 0.30   # vehicles found only in zoomed tiles need more confidence
 FLAT_MAX_H = 14        # boxes under this many pixels tall and much wider than tall are road markings
