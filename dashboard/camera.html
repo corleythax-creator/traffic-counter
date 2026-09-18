@@ -60,9 +60,11 @@ p{margin:0}
 
 section{margin-top:28px}
 .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel)}
 .seg button{font:inherit;font-size:.9rem;border:0;background:none;color:var(--ink);padding:6px 12px;cursor:pointer}
 .seg button + button{border-left:1px solid var(--rule)}
+/* six windows still fit one row on a phone with tighter padding */
+@media (max-width:520px){ .seg button{padding:6px 8px;font-size:.85rem} }
 .seg button[aria-pressed="true"]{background:var(--sign);color:var(--sign-ink);font-weight:600}
 button:focus-visible{outline:3px solid var(--peak);outline-offset:2px}
 .chart{position:relative;background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:12px 10px 6px;touch-action:pan-y;-webkit-user-select:none;user-select:none;cursor:crosshair}
@@ -75,6 +77,9 @@ button:focus-visible{outline:3px solid var(--peak);outline-offset:2px}
 .tip strong{display:block}
 .tip[hidden]{display:none}
 .chart text{fill:var(--muted);font-family:inherit;font-size:12px}
+.avgline{stroke:var(--ink);stroke-width:1.25;stroke-dasharray:6 4;opacity:.5}
+.chart text.avgtxt{fill:var(--ink);font-size:11px;font-weight:700;
+  paint-order:stroke;stroke:var(--panel);stroke-width:3.5px;stroke-linejoin:round}
 .note{font-size:.88rem;color:var(--muted);margin-top:8px;max-width:70ch}
 .msg{margin-top:16px;padding:12px 14px;border-left:4px solid var(--warn);background:var(--panel);border-radius:0 8px 8px 0}
 .msg[hidden]{display:none}
@@ -111,9 +116,11 @@ footer{margin-top:32px;font-size:.85rem;color:var(--muted);max-width:70ch}
     <div class="head">
       <h2 id="chartTitle">Vehicles in view over time</h2>
       <div class="seg" role="group" aria-label="Time window" id="seg">
-        <button data-w="1h" aria-pressed="true">1 hour</button>
-        <button data-w="6h" aria-pressed="false">6 hours</button>
-        <button data-w="24h" aria-pressed="false">24 hours</button>
+        <button data-w="1h" aria-pressed="true">1 hr</button>
+        <button data-w="3h" aria-pressed="false">3 hr</button>
+        <button data-w="6h" aria-pressed="false">6 hr</button>
+        <button data-w="12h" aria-pressed="false">12 hr</button>
+        <button data-w="24h" aria-pressed="false">24 hr</button>
         <button data-w="7d" aria-pressed="false">7 days</button>
       </div>
     </div>
@@ -124,7 +131,7 @@ footer{margin-top:32px;font-size:.85rem;color:var(--muted);max-width:70ch}
   <section>
     <div class="head"><h2>Typical hour of the day</h2></div>
     <div class="chart" id="hours"></div>
-    <p class="note">Average vehicles per frame for each hour, across everything recorded so far. Touch and slide to read each hour. Hours with no data are left blank; this fills in as capture runs through a full day.</p>
+    <p class="note">Average vehicles per frame for each hour, across everything recorded so far; the dashed line is the average across every hour, so the bars above it are this camera's busy stretch of the day. Touch and slide to read each hour. Hours with no data are left blank; this fills in as capture runs through a full day.</p>
   </section>
 
   <footer>
@@ -148,12 +155,14 @@ const _q = new URLSearchParams(location.search);
 let cam = (_q.get("cam") || "lakeland-treetops").replace(/[^a-z0-9-]/g, "");
 const camName = c => CAMERAS[c] || {a:c, b:"", short:c};
 const WINDOWS = {
-  "1h":  {interval:"1 hour",  bucket:60,   label:"per minute"},
-  "6h":  {interval:"6 hours", bucket:300,  label:"per 5 minutes"},
-  "24h": {interval:"24 hours",bucket:900,  label:"per 15 minutes"},
-  "7d":  {interval:"7 days",  bucket:3600, label:"per hour"}
+  "1h":  {interval:"1 hour",   bucket:60,   span:3600,   label:"per minute",     short:"1-hr"},
+  "3h":  {interval:"3 hours",  bucket:60,   span:10800,  label:"per minute",     short:"3-hr"},
+  "6h":  {interval:"6 hours",  bucket:300,  span:21600,  label:"per 5 minutes",  short:"6-hr"},
+  "12h": {interval:"12 hours", bucket:60,   span:43200,  label:"per minute",     short:"12-hr"},
+  "24h": {interval:"24 hours", bucket:900,  span:86400,  label:"per 15 minutes", short:"24-hr"},
+  "7d":  {interval:"7 days",   bucket:3600, span:604800, label:"per hour",       short:"7-day"}
 };
-let win = ["1h","6h","24h","7d"].includes(_q.get("w")) ? _q.get("w") : "1h", lastOk = 0, busy = false, retried = false, pending = false;
+let win = WINDOWS[_q.get("w")] ? _q.get("w") : "1h", lastOk = 0, busy = false, retried = false, pending = false;
 const $ = id => document.getElementById(id);
 
 const fmtTime = iso => new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",minute:"2-digit"}).format(new Date(iso));
@@ -206,7 +215,7 @@ function render(d){
   $("sFrames").textContent = Number(d.frames).toLocaleString();
   const mx = d.mix || {};
   $("sMix").textContent = (mx.car||0) + " / " + (mx.truck||0) + " / " + ((mx.bus||0) + (mx.motorcycle||0));
-  drawSeries(d.series || [], now);
+  drawSeries(d.series || [], now, d.avg);
   drawHours(d.hourly || []);
 }
 
@@ -214,12 +223,23 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":
 
 function boxW(id){ const el = $(id); return Math.max(260, Math.floor(el.clientWidth - 20)); }
 
+// The average for the whole period, drawn across the plot. Dashed and neutral so it
+// reads as an annotation rather than another gridline (those are solid and recessive)
+// or another bar: it is the level each bar should be compared against.
+function avgRule(v, ymax, geo, label){
+  if (v == null || !(v > 0) || !(ymax > 0)) return "";
+  const {L, R, T, ph, W} = geo, yy = T + ph - Math.min(v, ymax) / ymax * ph;
+  const room = yy - T > 15;  // keep the caption inside the plot when the line runs high
+  return `<line class="avgline" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/>` +
+         `<text class="avgtxt" x="${W - R}" y="${(room ? yy - 5 : yy + 13).toFixed(1)}" text-anchor="end">${esc(label)}</text>`;
+}
+
 const scrub = {};
 
-function drawSeries(series, now){
+function drawSeries(series, now, windowAvg){
   const W = boxW("chart"), H = W < 500 ? 220 : 260, L = 40, R = 14, T = 12, B = 30;
-  const {bucket, label, interval} = WINDOWS[win];
-  const span = {"1h":3600,"6h":21600,"24h":86400,"7d":604800}[win] * 1000;
+  const {bucket, label, interval, short} = WINDOWS[win];
+  const span = WINDOWS[win].span * 1000;
   const t0 = now - span, pw = W - L - R, ph = H - T - B;
   const pts = series.map(s => ({t:new Date(s.t).getTime(), avg:Number(s.avg), peak:s.peak, n:s.n})).filter(s => !isNaN(s.avg));
   $("chartTitle").textContent = "Vehicles in view, " + label;
@@ -227,7 +247,8 @@ function drawSeries(series, now){
   if (!pts.length){ $("chart").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No frames in the last ' + interval + '.</p>'; $("chartNote").textContent=""; return; }
   const ymax = Math.max(1, Math.ceil(Math.max(...pts.map(p => p.avg)) * 1.15 * 2) / 2);
   const x = t => L + (t - t0) / span * pw, y = v => T + ph - v / ymax * ph;
-  const bw = Math.max(1.5, bucket*1000 / span * pw - 1.5);
+  const slot = bucket * 1000 / span * pw;
+  const bw = Math.max(1, slot > 3 ? slot - 1.5 : slot);
   let g = "";
   for (let i = 0; i <= 4; i++){ const v = ymax * i / 4, yy = y(v);
     g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--rule)" stroke-width="1"/>` +
@@ -247,10 +268,16 @@ function drawSeries(series, now){
       body: p.avg.toFixed(2) + " avg vehicles, peak " + p.peak + ", " + p.n + " frames"});
   });
   const guide = `<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>`;
-  $("chart").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame ${label} over the last ${interval}">${g}${bars}${guide}</svg>`;
+  const frames = pts.reduce((sum, p) => sum + p.n, 0);
+  const periodAvg = windowAvg != null ? Number(windowAvg)
+    : frames ? pts.reduce((sum, p) => sum + p.avg * p.n, 0) / frames : null;
+  const rule = periodAvg == null ? ""
+    : avgRule(periodAvg, ymax, {L, R, T, ph, W}, short + " avg " + periodAvg.toFixed(2));
+  $("chart").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame ${label} over the last ${interval}${periodAvg == null ? "" : ", with the " + short + " average of " + periodAvg.toFixed(2) + " marked"}">${g}${bars}${rule}${guide}</svg>`;
   scrub.chart = {W, bars: meta};
   const best = pts.find(p => p.avg === maxAvg);
-  $("chartNote").textContent = "Each bar is the average vehicles per frame " + label + ". Busiest: " +
+  $("chartNote").textContent = "Each bar is the average vehicles per frame " + label +
+    (periodAvg == null ? ". " : "; the dashed line is the " + short + " average, " + periodAvg.toFixed(2) + ". ") + "Busiest: " +
     (win === "7d" ? fmtDay(best.t) + " " : "") + fmtTime(best.t) + " at " + best.avg.toFixed(2) + " (highlighted). Touch and slide across the chart to read each bar; gaps mean no frames were captured.";
 }
 
@@ -275,7 +302,11 @@ function drawHours(hourly){
     meta.push({cx: L + cw*hr + cw/2, head: hname(hr), body: v.toFixed(2) + " avg vehicles over " + h.n + " frames"});
   }
   const guide = `<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>`;
-  $("hours").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame by hour of day">${g}${guide}</svg>`;
+  // this chart's period is everything recorded, so weight each hour by its frame count
+  const seen = hourly.reduce((sum, h) => sum + Number(h.n), 0);
+  const allAvg = seen ? hourly.reduce((sum, h) => sum + Number(h.avg) * Number(h.n), 0) / seen : null;
+  const rule = allAvg == null ? "" : avgRule(allAvg, ymax, {L, R, T, ph, W}, "all-day avg " + allAvg.toFixed(2));
+  $("hours").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame by hour of day${allAvg == null ? "" : ", with the all-day average of " + allAvg.toFixed(2) + " marked"}">${g}${rule}${guide}</svg>`;
   scrub.hours = {W, bars: meta};
 }
 
@@ -329,7 +360,7 @@ $("seg").addEventListener("click", e => {
   load();
 });
 let rz;
-new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { if (lastData){ drawSeries(lastData.series || [], new Date(lastData.now).getTime()); drawHours(lastData.hourly || []); } }, 120); }).observe(document.querySelector("main"));
+new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { if (lastData){ drawSeries(lastData.series || [], new Date(lastData.now).getTime(), lastData.avg); drawHours(lastData.hourly || []); } }, 120); }).observe(document.querySelector("main"));
 $("refreshBtn").addEventListener("click", () => { retried = false; load(); });
 
 setInterval(() => { if (document.visibilityState === "visible") load(); }, 120000);

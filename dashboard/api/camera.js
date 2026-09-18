@@ -1,6 +1,6 @@
 // Per-camera detail (down to the minute) for camera.html. Calls a read-only
 // Supabase function with the public (publishable) key.
-const WINDOWS = new Set(["1h", "6h", "24h", "7d"]);
+const WINDOWS = new Set(["1h", "3h", "6h", "12h", "24h", "7d"]);
 
 export default async function handler(req, res) {
   const cam = String(req.query.cam || "");

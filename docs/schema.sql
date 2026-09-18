@@ -79,9 +79,11 @@ alter table public.camera_refs enable row level security;
 --                              series[{t,avg,peak,n}], hourly[{hr,avg,n}] } },
 --       video: [{camera, t, line, veh, secs}] }
 --   traffic_camera(cam text, win text default '1h') returns json
---     win: 1h (1-min buckets) | 6h (5-min) | 24h (15-min) | 7d (1-hour)
+--     win: 1h (1-min buckets) | 3h (1-min) | 6h (5-min) | 12h (1-min)
+--          | 24h (15-min) | 7d (1-hour)   -- 3h and 12h keep minute detail on purpose
 --     { now, camera, latest{at,total,people,view,source}, frames, avg, people_avg, peak,
 --       mix{car,truck,bus,motorcycle}, series[{t,avg,peak,n,people}], hourly[{hr,avg,n}] }
+--     'avg' is the window average the detail page draws as its period-average line.
 -- grant execute on function public.traffic_dashboard(text) to anon, authenticated;
 -- grant execute on function public.traffic_camera(text, text) to anon, authenticated;
 
