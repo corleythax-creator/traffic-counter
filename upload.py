@@ -56,6 +56,7 @@ TILE_ONLY_MIN = 0.30   # vehicles found only in zoomed tiles need more confidenc
 FLAT_MAX_H = 14        # boxes under this many pixels tall and much wider than tall are road markings
 EDGE_MIN = 0.35        # low-confidence boxes touching two image edges are usually pavement or shadow
 BATCH = 250
+SOURCE = os.environ.get("TRAFFIC_SOURCE", "local")  # "github" on the scheduled samples
 
 
 # ---------- Supabase ----------
@@ -303,7 +304,8 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20, keep_images
                            "file": r["file"], "bytes": to_int(r.get("bytes")), "md5": r["md5"],
                            **counts, "total": total, "people": people, "model": tag,
                            "brightness": brightness, "conf_threshold": thr,
-                           "view_status": view if img.exists() else None})
+                           "view_status": view if img.exists() else None,
+                           "source": SOURCE})
 
         if not frames:
             continue

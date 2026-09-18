@@ -146,14 +146,16 @@ def main():
             for name in cam["lines"]:
                 for d in ("toward", "away"):
                     rows.append({"camera": a.camera, "started_at": started.isoformat(), "seconds": 0,
-                                 "line": name, "direction": d, "vehicles": None, "view_status": view})
+                                 "line": name, "direction": d, "vehicles": None, "view_status": view,
+                                 "source": upload.SOURCE})
             print(f"camera view {view}; not counting this run")
         else:
             counts, seconds = count_crossings(cam, a.seconds)
             for name, dirs in counts.items():
                 for d, n in dirs.items():
                     rows.append({"camera": a.camera, "started_at": started.isoformat(), "seconds": round(seconds, 1),
-                                 "line": name, "direction": d, "vehicles": n, "view_status": view})
+                                 "line": name, "direction": d, "vehicles": n, "view_status": view,
+                                 "source": upload.SOURCE})
             print(f"{cam['name']}: {seconds:.0f}s analysed, {counts}")
         upload.upsert(url, key, "traffic_video_counts", rows, "camera,started_at,line,direction")
 
