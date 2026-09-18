@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Count vehicles on frames saved by capture.py and upload them to Supabase.
 
-Each frame is checked twice: once whole, and once as 9 overlapping tiles
-enlarged 2x, which finds smaller and more distant vehicles. Only vehicles whose
-bottom-center falls inside the camera's counting zone (the near and middle
-stretch of road) count toward the totals. Every detection down to 0.10
-confidence is still stored in traffic_detections so the cutoff can be re-tuned.
+Vehicles are found with YOLO11 medium at 960 pixels (optionally plus zoomed
+tiles). Only vehicles whose bottom-center falls inside the camera's counting
+zone (the near and middle stretch of road) count toward the totals. Every
+detection down to 0.10 confidence is still stored in traffic_detections.
+
+Camera moves: the first daytime frame for each camera is saved as its reference
+view (Supabase table camera_refs). Later frames are compared with it; small pans
+or zooms move the counting zone to follow, and a big change is flagged
+(view_status = changed) and counted with a general lower-frame zone.
 
 Safe to re-run and safe while capture.py is running: it resumes after the last
 uploaded frame (cam folder/.last_upload) and overwrites instead of duplicating.
@@ -18,7 +22,9 @@ import argparse, csv, json, os, time, urllib.request
 from pathlib import Path
 
 VEHICLES = {2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
-MODEL_NAME = "yolo11n.pt"
+MODEL_NAME = "yolo11m.pt"
+IMGSZ = 960
+FALLBACK_ZONE = [(0, 0.25), (1, 0.25), (1, 1), (0, 1)]  # used when a camera view no longer matches
 DET_FLOOR = 0.10
 # Counting zones as (x, y) fractions of the image, from the top-left corner
 CAMERAS = {
@@ -27,7 +33,7 @@ CAMERAS = {
     "lakeland-n-treetops": {"name": "Lakeland Dr N at Treetops Blvd", "stream": "011403", "host": "streamingjxn2",
                             "zone": [(0, 1), (1, 1), (1, 0.24), (0.656, 0.24), (0, 0.406)]},
     "jackson-e-fraternity": {"name": "Jackson E at Frtrnty", "stream": "060106", "host": "streamingjxn4",
-                             "zone": [(0.094, 0.3125), (0.39, 0.3125), (0.875, 0.73), (1, 0.81), (1, 1), (0.383, 1)]},
+                             "zone": [(0.109, 0.25), (0.305, 0.25), (1, 0.80), (1, 1), (0.383, 1)]},
     "jackson-w-fraternity": {"name": "Jackson W at Frtrnty", "stream": "060105", "host": "streamingjxn4",
                              "zone": [(0, 0.875), (0.672, 0.29), (0.906, 0.29), (0.78, 0.625), (0.625, 1), (0, 1)]},
     "lakeland-n-airport":   {"name": "Lakeland Dr N at Airport Rd", "stream": "010102", "host": "streamingjxn2",
@@ -35,6 +41,7 @@ CAMERAS = {
 }
 TILE_ONLY_MIN = 0.30   # vehicles found only in zoomed tiles need more confidence
 FLAT_MAX_H = 14        # boxes under this many pixels tall and much wider than tall are road markings
+EDGE_MIN = 0.35        # low-confidence boxes touching two image edges are usually pavement or shadow
 BATCH = 250
 
 
@@ -73,6 +80,12 @@ def request(url, key, method, path, rows=None, prefer="return=minimal"):
         r.read()
 
 
+def get_json(url, key, path):
+    req = urllib.request.Request(f"{url}/rest/v1/{path}", headers={"apikey": key, "Authorization": f"Bearer {key}"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read() or b"[]")
+
+
 def upsert(url, key, table, rows, on_conflict):
     request(url, key, "POST", f"{table}?on_conflict={on_conflict}", rows,
             "resolution=merge-duplicates,return=minimal")
@@ -86,7 +99,7 @@ def _overlap(a, b):
     return inter / (aa + bb - inter + 1e-9), inter / (min(aa, bb) + 1e-9)
 
 
-def detect(model, path, tiles=True):
+def detect(model, path, tiles=False):
     """Returns ([(x1, y1, x2, y2, conf, class, full_pass, w_px, h_px), ...] with box
     coordinates as 0-1 fractions, and mean brightness). full_pass is True when the
     whole-image pass also found the vehicle."""
@@ -97,10 +110,12 @@ def detect(model, path, tiles=True):
     found = []
 
     def run(a):
-        r = model(a[:, :, ::-1], conf=DET_FLOOR, classes=list(VEHICLES), imgsz=640, verbose=False)[0]
+        r = model(a[:, :, ::-1], conf=DET_FLOOR, classes=list(VEHICLES), imgsz=size, verbose=False)[0]
         return zip(r.boxes.xyxy.tolist(), r.boxes.conf.tolist(), r.boxes.cls.tolist())
 
+    size = IMGSZ
     full = [(*b, c, int(k)) for b, c, k in run(arr)]
+    size = 640
     found.extend(full)
     if tiles:
         tw, th = W // 2, H // 2
@@ -123,12 +138,15 @@ def detect(model, path, tiles=True):
     for d in keep:
         x1, y1, x2, y2, c, k = d
         fp = any(d is f or _overlap(d, f)[0] > 0.3 for f in full)
-        dets.append((x1 / W, y1 / H, x2 / W, y2 / H, c, VEHICLES[k], fp, x2 - x1, y2 - y1))
+        edges = (x1 < 2) + (y1 < 2) + (x2 > W - 2) + (y2 > H - 2)
+        dets.append((x1 / W, y1 / H, x2 / W, y2 / H, c, VEHICLES[k], fp, x2 - x1, y2 - y1, edges))
     return dets, float(arr.mean())
 
 
-def counts_as_vehicle(conf_value, full_pass, w, h, conf):
+def counts_as_vehicle(conf_value, full_pass, w, h, conf, edges=0):
     if h < FLAT_MAX_H and w / max(h, 1) > 1.7:
+        return False
+    if edges >= 2 and conf_value < EDGE_MIN:
         return False
     return conf_value >= (conf if full_pass else max(conf, TILE_ONLY_MIN))
 
@@ -142,13 +160,85 @@ def in_zone(poly, x, y):
     return inside
 
 
+# ---------- camera-move detection ----------
+_sift = None
+
+
+def _small_gray(path):
+    import cv2
+    return cv2.cvtColor(cv2.resize(cv2.imread(str(path)), (320, 240), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
+
+
+def _is_night(path):
+    import cv2, numpy as np
+    hsv = cv2.cvtColor(cv2.resize(cv2.imread(str(path)), (160, 120)), cv2.COLOR_BGR2HSV)
+    return float(np.mean(hsv[:, :, 1])) < 12  # infrared frames have almost no color
+
+
+def _features(g):
+    import cv2, numpy as np
+    global _sift
+    _sift = _sift or cv2.SIFT_create(1500)
+    g = cv2.createCLAHE(2.0, (8, 8)).apply(g)
+    m = np.zeros_like(g); m[10:212, :] = 255; m[g < 25] = 0  # skip the name overlay and dark housing
+    return _sift.detectAndCompute(g, m)
+
+
+def load_ref(url, key, cam):
+    import cv2, numpy as np, base64
+    rows = get_json(url, key, f"camera_refs?camera=eq.{cam}&select=ref_jpg,zone")
+    if not rows:
+        return None
+    g = cv2.imdecode(np.frombuffer(base64.b64decode(rows[0]["ref_jpg"]), np.uint8), cv2.IMREAD_GRAYSCALE)
+    return {"feats": _features(g), "zone": [tuple(p) for p in rows[0]["zone"]]}
+
+
+def save_ref(url, key, cam, path, zone):
+    import cv2, base64
+    ok, buf = cv2.imencode(".jpg", _small_gray(path), [cv2.IMWRITE_JPEG_QUALITY, 75])
+    upsert(url, key, "camera_refs", [{"camera": cam, "ref_jpg": base64.b64encode(buf.tobytes()).decode(),
+                                      "zone": [list(p) for p in zone]}], "camera")
+    return {"feats": _features(_small_gray(path)), "zone": zone}
+
+
+def check_view(ref, path):
+    """Returns (status, zone for this frame)."""
+    import cv2, numpy as np
+    ka, da = ref["feats"]; kb, db = _features(_small_gray(path))
+    if da is None or db is None or len(ka) < 10 or len(kb) < 10:
+        return "changed", FALLBACK_ZONE
+    pairs = cv2.BFMatcher().knnMatch(da, db, k=2)
+    good = [m for m, n in (p for p in pairs if len(p) == 2) if m.distance < 0.75 * n.distance]
+    if len(good) < 12:
+        return "changed", FALLBACK_ZONE
+    Hm, inl = cv2.findHomography(np.float32([ka[m.queryIdx].pt for m in good]),
+                                 np.float32([kb[m.trainIdx].pt for m in good]), cv2.RANSAC, 3.0)
+    n_in = int(inl.sum()) if inl is not None else 0
+    if Hm is None or n_in < 15 or n_in < 0.4 * len(good):
+        return "changed", FALLBACK_ZONE
+    scale = float(np.sqrt(abs(np.linalg.det(Hm[:2, :2]))))
+    if not 0.6 < scale < 1.6:
+        return "changed", FALLBACK_ZONE
+    pts = np.float32([[x * 320, y * 240] for x, y in ref["zone"]]).reshape(-1, 1, 2)
+    moved = cv2.perspectiveTransform(pts, Hm).reshape(-1, 2)
+    shift = float(np.abs(moved - pts.reshape(-1, 2)).mean())
+    if shift < 4:
+        return "same", ref["zone"]
+    return "shifted", [(min(max(x / 320, 0), 1), min(max(y / 240, 0), 1)) for x, y in moved]
+
+
 def to_int(v):
     return int(v) if v is not None and str(v).strip() != "" else None
 
 
 # ---------- main loop ----------
-def run_once(out, url, key, model, cam, conf, tiles):
-    zone = CAMERAS[cam]["zone"]
+def run_once(out, url, key, model, cam, conf, tiles, check_every=20):
+    base_zone = CAMERAS[cam]["zone"]
+    try:
+        ref = load_ref(url, key, cam)
+    except Exception as e:
+        print(f"could not load reference view: {e}"); ref = None
+    view, zone, since_check = None, base_zone, check_every
     log_path, state = out / "frames.csv", out / ".last_upload"
     last = int(state.read_text()) if state.exists() else 0
     if not log_path.exists():
@@ -169,11 +259,20 @@ def run_once(out, url, key, model, cam, conf, tiles):
             total = to_int(r.get("total")); brightness = thr = None; tag = MODEL_NAME if total is not None else None
             img = out / r["file"]
             if img.exists():
+                if _is_night(img):
+                    view, zone = "night", (ref["zone"] if ref else base_zone)
+                else:
+                    if ref is None:
+                        ref = save_ref(url, key, cam, img, base_zone); view, zone = "same", base_zone
+                        print("saved reference view")
+                    elif view in (None, "night") or since_check >= check_every:
+                        view, zone = check_view(ref, img); since_check = 0
+                    since_check += 1
                 found, brightness = detect(model, img, tiles)
                 counts = {v: 0 for v in VEHICLES.values()}
-                for j, (x1, y1, x2, y2, p, name, fp, wpx, hpx) in enumerate(found):
+                for j, (x1, y1, x2, y2, p, name, fp, wpx, hpx, edges) in enumerate(found):
                     inside = in_zone(zone, (x1 + x2) / 2, y2)
-                    if inside and counts_as_vehicle(p, fp, wpx, hpx, conf):
+                    if inside and counts_as_vehicle(p, fp, wpx, hpx, conf, edges):
                         counts[name] += 1
                     dets.append({"camera": cam, "epoch_ms": ms, "idx": j, "class": name,
                                  "conf": round(p, 4), "x1": round(x1, 4), "y1": round(y1, 4),
@@ -185,7 +284,8 @@ def run_once(out, url, key, model, cam, conf, tiles):
             frames.append({"camera": cam, "epoch_ms": ms, "captured_at": r["timestamp_local"],
                            "file": r["file"], "bytes": to_int(r.get("bytes")), "md5": r["md5"],
                            **counts, "total": total, "model": tag,
-                           "brightness": brightness, "conf_threshold": thr})
+                           "brightness": brightness, "conf_threshold": thr,
+                           "view_status": view if img.exists() else None})
 
         upsert(url, key, "traffic_frames", frames, "camera,epoch_ms")
         for k in range(0, len(counted), 200):
@@ -203,7 +303,7 @@ def main():
     ap.add_argument("--camera", default="lakeland-treetops", choices=list(CAMERAS))
     ap.add_argument("--out", default="cam_data", help="folder capture.py writes to")
     ap.add_argument("--conf", type=float, default=0.20, help="confidence needed to count a vehicle")
-    ap.add_argument("--no-tiles", action="store_true", help="faster, but misses more distant vehicles")
+    ap.add_argument("--tiles", action="store_true", help="also check zoomed-in tiles (slower; the medium model rarely needs it)")
     ap.add_argument("--every", type=float, default=0, help="minutes between runs; 0 = once")
     a = ap.parse_args()
 
@@ -213,7 +313,7 @@ def main():
     print(f"Counting {CAMERAS[a.camera]['name']} from {a.out}")
     while True:
         try:
-            run_once(Path(a.out), url, key, model, a.camera, a.conf, not a.no_tiles)
+            run_once(Path(a.out), url, key, model, a.camera, a.conf, a.tiles)
         except Exception as e:
             print(f"upload failed: {e}")
         if not a.every:
