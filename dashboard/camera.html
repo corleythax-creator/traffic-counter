@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic camera detail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9EBE6; --panel:#F7F8F5; --ink:#1F2427; --muted:#5F676C; --rule:#CDD1CB;
+  --sign:#0E6B45; --sign-ink:#FFFFFF; --bar:#0E6B45; --peak:#C47F00; --warn:#9A3B12;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
+    --sign:#12704A; --bar:#3FA877; --peak:#F0B429; --warn:#F08A5D; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
+  --sign:#12704A; --bar:#3FA877; --peak:#F0B429; --warn:#F08A5D; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Overpass",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px;line-height:1.45;font-variant-numeric:tabular-nums}
+main{max-width:960px;margin:0 auto;padding:20px 16px 48px}
+h2{font-size:1.15rem;font-weight:800;margin:0}
+p{margin:0}
+.muted{color:var(--muted)}
+
+/* Guide-sign hero */
+.sign{background:var(--sign);color:var(--sign-ink);border-radius:14px;padding:6px}
+.sign-inner{border:3px solid var(--sign-ink);border-radius:10px;padding:18px 20px 20px;
+  display:grid;grid-template-columns:1fr auto;gap:12px 24px;align-items:end}
+.legend{font-weight:800;font-size:clamp(1.5rem,5vw,2.4rem);line-height:1.05;letter-spacing:.01em}
+.legend span{display:block;font-weight:600;font-size:.62em;opacity:.9;margin-top:4px}
+.now{text-align:right}
+.now .n{font-weight:800;font-size:clamp(3.5rem,14vw,6rem);line-height:.9}
+.now .l{font-size:.95rem;opacity:.92}
+.status{grid-column:1/-1;font-size:.9rem;opacity:.95;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--sign-ink);flex:none}
+.dot.stale{background:#F0B429}
+
+/* Stats line */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:22px 0 8px;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.stat{padding:14px 12px}
+.stat + .stat{border-left:1px solid var(--rule)}
+.stat .v{font-size:1.6rem;font-weight:800;line-height:1.1}
+.stat .k{font-size:.85rem;color:var(--muted)}
+@media (max-width:620px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .stat:nth-child(3){border-left:none}
+  .stat:nth-child(n+3){border-top:1px solid var(--rule)}
+}
+
+section{margin-top:28px}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{font:inherit;font-size:.9rem;border:0;background:none;color:var(--ink);padding:6px 12px;cursor:pointer}
+.seg button + button{border-left:1px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--sign);color:var(--sign-ink);font-weight:600}
+button:focus-visible{outline:3px solid var(--peak);outline-offset:2px}
+.chart{position:relative;background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:12px 10px 6px;touch-action:pan-y;-webkit-user-select:none;user-select:none;cursor:crosshair}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart svg.scrub rect[data-i]{opacity:.35}
+.chart svg.scrub rect.hl{opacity:1}
+.guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
+.tip{position:absolute;top:6px;left:0;background:var(--ink);color:var(--bg);font-size:.85rem;line-height:1.3;
+  padding:6px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:2}
+.tip strong{display:block}
+.tip[hidden]{display:none}
+.chart text{fill:var(--muted);font-family:inherit;font-size:12px}
+.note{font-size:.88rem;color:var(--muted);margin-top:8px;max-width:70ch}
+.msg{margin-top:16px;padding:12px 14px;border-left:4px solid var(--warn);background:var(--panel);border-radius:0 8px 8px 0}
+.msg[hidden]{display:none}
+.msg strong{display:block}
+.refresh{font:inherit;font-size:.9rem;border:1px solid var(--rule);background:var(--panel);color:var(--ink);
+  border-radius:8px;padding:6px 12px;cursor:pointer}
+.back{margin:0 0 12px;font-size:.95rem}
+.back a{color:var(--ink);font-weight:600;text-decoration:none}
+.back a:hover,.back a:focus-visible{text-decoration:underline}
+footer{margin-top:32px;font-size:.85rem;color:var(--muted);max-width:70ch}
+</style>
+</head>
+<body>
+<main>
+  <p class="back"><a href="/">&larr; All cameras</a></p>
+  <div class="sign" role="region" aria-label="Current traffic">
+    <div class="sign-inner">
+      <div class="legend"><b id="legA" style="font-weight:800">Lakeland Dr S</b><span id="legB">at Treetops Blvd</span></div>
+      <div class="now"><div class="n" id="nowN">–</div><div class="l">vehicles in view</div></div>
+      <div class="status"><span class="dot" id="dot"></span><span id="statusText">Loading…</span></div>
+    </div>
+  </div>
+
+  <div class="msg" id="msg" hidden role="status"><strong id="msgTitle"></strong><span id="msgBody"></span></div>
+
+  <div class="stats" aria-live="polite">
+    <div class="stat"><div class="v" id="sAvg">–</div><div class="k">avg vehicles per frame</div></div>
+    <div class="stat"><div class="v" id="sPeak">–</div><div class="k" id="sPeakK">busiest frame</div></div>
+    <div class="stat"><div class="v" id="sFrames">–</div><div class="k">frames in window</div></div>
+    <div class="stat"><div class="v" id="sMix">–</div><div class="k">cars / trucks / other</div></div>
+  </div>
+
+  <section>
+    <div class="head">
+      <h2 id="chartTitle">Vehicles in view over time</h2>
+      <div class="seg" role="group" aria-label="Time window" id="seg">
+        <button data-w="1h" aria-pressed="true">1 hour</button>
+        <button data-w="6h" aria-pressed="false">6 hours</button>
+        <button data-w="24h" aria-pressed="false">24 hours</button>
+        <button data-w="7d" aria-pressed="false">7 days</button>
+      </div>
+    </div>
+    <div class="chart" id="chart"></div>
+    <p class="note" id="chartNote"></p>
+  </section>
+
+  <section>
+    <div class="head"><h2>Typical hour of the day</h2></div>
+    <div class="chart" id="hours"></div>
+    <p class="note">Average vehicles per frame for each hour, across everything recorded so far. Touch and slide to read each hour. Hours with no data are left blank; this fills in as capture runs through a full day.</p>
+  </section>
+
+  <footer>
+    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each camera snapshot, so they measure how busy the intersection looks at a moment, not how many vehicles passed. Counts include only vehicles in each camera's counting zone (the near and middle stretch of road); very distant traffic is too small to count reliably. Night frames tend to undercount. Refreshes every 2 minutes while this page is open. Source: MDOT (Mississippi Department of Transportation) traffic cameras.</p>
+    <p style="margin-top:10px"><button class="refresh" id="refreshBtn">Refresh now</button></p>
+  </footer>
+</main>
+
+<script>
+const TZ = "America/Chicago";
+const CAMERAS = {
+  "lakeland-treetops":   {a:"Lakeland Dr S", b:"at Treetops Blvd", short:"Lakeland S"},
+  "lakeland-n-treetops": {a:"Lakeland Dr N", b:"at Treetops Blvd", short:"Lakeland N"},
+  "jackson-e-fraternity": {a:"Jackson E", b:"at Frtrnty", short:"Jackson E"},
+  "jackson-w-fraternity": {a:"Jackson W", b:"at Frtrnty", short:"Jackson W"},
+  "lakeland-n-airport": {a:"Lakeland Dr N", b:"at Airport Rd", short:"Airport Rd"},
+  "university-w-lamar": {a:"University W", b:"at Lamar", short:"University W"},
+  "lamar-n-university": {a:"Lamar Blvd N", b:"at University Ave", short:"Lamar N"}
+};
+const _q = new URLSearchParams(location.search);
+let cam = (_q.get("cam") || "lakeland-treetops").replace(/[^a-z0-9-]/g, "");
+const camName = c => CAMERAS[c] || {a:c, b:"", short:c};
+const WINDOWS = {
+  "1h":  {interval:"1 hour",  bucket:60,   label:"per minute"},
+  "6h":  {interval:"6 hours", bucket:300,  label:"per 5 minutes"},
+  "24h": {interval:"24 hours",bucket:900,  label:"per 15 minutes"},
+  "7d":  {interval:"7 days",  bucket:3600, label:"per hour"}
+};
+let win = ["1h","6h","24h","7d"].includes(_q.get("w")) ? _q.get("w") : "1h", lastOk = 0, busy = false, retried = false, pending = false;
+const $ = id => document.getElementById(id);
+
+const fmtTime = iso => new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",minute:"2-digit"}).format(new Date(iso));
+const fmtTimeS = iso => new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",minute:"2-digit",second:"2-digit"}).format(new Date(iso));
+const fmtDay = iso => new Intl.DateTimeFormat("en-US",{timeZone:TZ,month:"short",day:"numeric"}).format(new Date(iso));
+function ago(ms){ const m = Math.round(ms/60000); if (m < 1) return "just now"; if (m < 60) return m + " min ago";
+  const h = Math.floor(m/60); return h + " hr " + (m%60) + " min ago"; }
+
+function showMsg(title, body){ $("msgTitle").textContent = title; $("msgBody").textContent = body || ""; $("msg").hidden = false; }
+function hideMsg(){ $("msg").hidden = true; }
+
+async function load(){
+  if (busy){ pending = true; return; }
+  busy = true;
+  try{
+    const r = await fetch("/api/camera?cam=" + encodeURIComponent(cam) + "&w=" + encodeURIComponent(win), {cache: "no-store"});
+    if (!r.ok) throw new Error("Server returned " + r.status);
+    const d = await r.json();
+    if (!d || !("series" in d)) throw new Error("No data returned.");
+    lastOk = Date.now(); retried = false; hideMsg(); render(d);
+  }catch(err){
+    const keep = lastOk > 0;
+    showMsg(keep ? "Couldn't refresh; showing the last loaded data." : "Couldn't load traffic data.", " " + (err.message || "Try Refresh now in a minute."));
+    if (!keep) $("statusText").textContent = "Not connected";
+    if (!retried){ retried = true; setTimeout(load, 5000 + Math.random()*3000); }
+  }
+  finally{ busy = false; if (pending){ pending = false; load(); } }
+}
+
+let lastData = null;
+function render(d){
+  lastData = d;
+  const now = new Date(d.now).getTime();
+  if (d.latest){
+    $("nowN").textContent = d.latest.total ?? "–";
+    const age = now - new Date(d.latest.at).getTime();
+    const stale = age > 75*60000;
+    $("dot").classList.toggle("stale", stale);
+    $("statusText").textContent = "Latest frame " + fmtTimeS(d.latest.at) + " (" + ago(age) + ")" +
+      (stale ? ". No new frames for over an hour." : "") +
+      (d.latest.people != null ? ". People in view: " + d.latest.people : "") +
+      (d.latest.view === "changed" ? ". Camera was re-aimed; counting with a general zone" : "");
+  } else {
+    $("nowN").textContent = "–"; $("statusText").textContent = "No frames uploaded yet.";
+  }
+  const avg = d.avg == null ? null : Number(d.avg);
+  $("sAvg").textContent = avg == null ? "–" : avg.toFixed(2);
+  if (d.peak){ $("sPeak").textContent = d.peak.total; $("sPeakK").textContent = "busiest frame, " + fmtTime(d.peak.at); }
+  else { $("sPeak").textContent = "–"; $("sPeakK").textContent = "busiest frame"; }
+  $("sFrames").textContent = Number(d.frames).toLocaleString();
+  const mx = d.mix || {};
+  $("sMix").textContent = (mx.car||0) + " / " + (mx.truck||0) + " / " + ((mx.bus||0) + (mx.motorcycle||0));
+  drawSeries(d.series || [], now);
+  drawHours(d.hourly || []);
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function boxW(id){ const el = $(id); return Math.max(260, Math.floor(el.clientWidth - 20)); }
+
+const scrub = {};
+
+function drawSeries(series, now){
+  const W = boxW("chart"), H = W < 500 ? 220 : 260, L = 40, R = 14, T = 12, B = 30;
+  const {bucket, label, interval} = WINDOWS[win];
+  const span = {"1h":3600,"6h":21600,"24h":86400,"7d":604800}[win] * 1000;
+  const t0 = now - span, pw = W - L - R, ph = H - T - B;
+  const pts = series.map(s => ({t:new Date(s.t).getTime(), avg:Number(s.avg), peak:s.peak, n:s.n})).filter(s => !isNaN(s.avg));
+  $("chartTitle").textContent = "Vehicles in view, " + label;
+  scrub.chart = null;
+  if (!pts.length){ $("chart").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No frames in the last ' + interval + '.</p>'; $("chartNote").textContent=""; return; }
+  const ymax = Math.max(1, Math.ceil(Math.max(...pts.map(p => p.avg)) * 1.15 * 2) / 2);
+  const x = t => L + (t - t0) / span * pw, y = v => T + ph - v / ymax * ph;
+  const bw = Math.max(1.5, bucket*1000 / span * pw - 1.5);
+  let g = "";
+  for (let i = 0; i <= 4; i++){ const v = ymax * i / 4, yy = y(v);
+    g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--rule)" stroke-width="1"/>` +
+         `<text x="${L-6}" y="${yy+4}" text-anchor="end">${v % 1 ? v.toFixed(1) : v}</text>`; }
+  const ticks = Math.max(2, Math.min(6, Math.floor(pw / 95)));
+  for (let i = 0; i <= ticks; i++){ const t = t0 + span * i / ticks;
+    const lab = win === "7d" ? fmtDay(t) : fmtTime(t);
+    g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(lab)}</text>`; }
+  const maxAvg = Math.max(...pts.map(p => p.avg));
+  let bars = ""; const meta = [];
+  pts.forEach((p, i) => {
+    const top = y(p.avg), h = Math.max(p.avg > 0 ? 1.5 : 0, T + ph - top);
+    const fill = p.avg === maxAvg && maxAvg > 0 ? "var(--peak)" : "var(--bar)";
+    bars += `<rect data-i="${i}" x="${x(p.t)}" y="${T+ph-h}" width="${bw}" height="${h}" fill="${fill}" rx="1"/>`;
+    meta.push({cx: x(p.t) + bw/2,
+      head: (win === "7d" ? fmtDay(p.t) + ", " : "") + fmtTime(p.t),
+      body: p.avg.toFixed(2) + " avg vehicles, peak " + p.peak + ", " + p.n + " frames"});
+  });
+  const guide = `<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>`;
+  $("chart").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame ${label} over the last ${interval}">${g}${bars}${guide}</svg>`;
+  scrub.chart = {W, bars: meta};
+  const best = pts.find(p => p.avg === maxAvg);
+  $("chartNote").textContent = "Each bar is the average vehicles per frame " + label + ". Busiest: " +
+    (win === "7d" ? fmtDay(best.t) + " " : "") + fmtTime(best.t) + " at " + best.avg.toFixed(2) + " (highlighted). Touch and slide across the chart to read each bar; gaps mean no frames were captured.";
+}
+
+function drawHours(hourly){
+  const W = boxW("hours"), H = W < 500 ? 170 : 200, L = 40, R = 14, T = 12, B = 28, pw = W-L-R, ph = H-T-B;
+  const step = pw < 420 ? 6 : 3;
+  const by = {}; hourly.forEach(h => by[h.hr] = h);
+  scrub.hours = null;
+  if (!hourly.length){ $("hours").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No data yet.</p>'; return; }
+  const ymax = Math.max(1, Math.ceil(Math.max(...hourly.map(h => Number(h.avg))) * 1.15 * 2) / 2);
+  const cw = pw / 24, y = v => T + ph - v / ymax * ph;
+  const hlab = hr => hr === 0 ? "12a" : hr < 12 ? hr + "a" : hr === 12 ? "12p" : (hr-12) + "p";
+  const hname = hr => { const a = hr % 12 || 12, b = (hr + 1) % 12 || 12; return a + "–" + b + (hr + 1 < 12 || hr + 1 === 24 ? " AM" : " PM"); };
+  let g = ""; const meta = []; let i = 0;
+  for (let k = 0; k <= 2; k++){ const v = ymax*k/2, yy = y(v);
+    g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--rule)"/><text x="${L-6}" y="${yy+4}" text-anchor="end">${v % 1 ? v.toFixed(1) : v}</text>`; }
+  for (let hr = 0; hr < 24; hr++){
+    if (hr % step === 0) g += `<text x="${L + cw*hr + cw/2}" y="${H-8}" text-anchor="middle">${hlab(hr)}</text>`;
+    const h = by[hr]; if (!h) continue;
+    const v = Number(h.avg), top = y(v), hh = Math.max(v > 0 ? 1.5 : 0, T+ph-top);
+    g += `<rect data-i="${i++}" x="${L + cw*hr + 2}" y="${T+ph-hh}" width="${cw-4}" height="${hh}" fill="var(--bar)" rx="1"/>`;
+    meta.push({cx: L + cw*hr + cw/2, head: hname(hr), body: v.toFixed(2) + " avg vehicles over " + h.n + " frames"});
+  }
+  const guide = `<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>`;
+  $("hours").innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average vehicles per frame by hour of day">${g}${guide}</svg>`;
+  scrub.hours = {W, bars: meta};
+}
+
+function showBar(id, i){
+  const st = scrub[id], box = $(id), svg = box.querySelector("svg"), tip = box.querySelector(".tip");
+  if (!st || !svg || !tip || !st.bars[i]) return;
+  const b = st.bars[i];
+  svg.classList.add("scrub");
+  svg.querySelectorAll("rect.hl").forEach(r => r.classList.remove("hl"));
+  const rect = svg.querySelector(`rect[data-i="${i}"]`); if (rect) rect.classList.add("hl");
+  const gl = svg.querySelector(".guide"); gl.setAttribute("x1", b.cx); gl.setAttribute("x2", b.cx); gl.setAttribute("visibility", "visible");
+  tip.textContent = ""; const s = document.createElement("strong"); s.textContent = b.head; tip.append(s, b.body);
+  tip.hidden = false;
+  const r = svg.getBoundingClientRect(), br = box.getBoundingClientRect();
+  const px = r.left - br.left + b.cx * r.width / st.W, tw = tip.offsetWidth;
+  tip.style.left = Math.min(Math.max(4, px - tw/2), br.width - tw - 4) + "px";
+}
+function hideBar(id){
+  const box = $(id), svg = box.querySelector("svg"), tip = box.querySelector(".tip");
+  if (svg){ svg.classList.remove("scrub"); svg.querySelectorAll("rect.hl").forEach(r => r.classList.remove("hl"));
+    const gl = svg.querySelector(".guide"); if (gl) gl.setAttribute("visibility", "hidden"); }
+  if (tip) tip.hidden = true;
+}
+function attachScrub(id){
+  const box = $(id); let active = false;
+  const pick = e => {
+    const st = scrub[id], svg = box.querySelector("svg"); if (!st || !svg || !st.bars.length) return;
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * st.W / r.width;
+    let best = 0, bd = Infinity;
+    st.bars.forEach((b, i) => { const d = Math.abs(b.cx - sx); if (d < bd){ bd = d; best = i; } });
+    showBar(id, best);
+  };
+  box.addEventListener("pointerdown", e => { if (!scrub[id]) return; active = true; try { box.setPointerCapture(e.pointerId); } catch(_){} pick(e); });
+  box.addEventListener("pointermove", e => { if (active || e.pointerType === "mouse") pick(e); });
+  box.addEventListener("pointerup", () => { active = false; });
+  box.addEventListener("pointercancel", () => { active = false; });
+  box.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !active) hideBar(id); });
+}
+attachScrub("chart"); attachScrub("hours");
+document.addEventListener("pointerdown", e => { if (!e.target.closest(".chart")){ hideBar("chart"); hideBar("hours"); } });
+
+function setLegend(){ const n = camName(cam); $("legA").textContent = n.a; $("legB").textContent = n.b;
+  document.title = n.a + " " + n.b + " traffic"; }
+
+$("seg").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.w === win)));
+$("seg").addEventListener("click", e => {
+  const b = e.target.closest("button[data-w]"); if (!b) return;
+  win = b.dataset.w;
+  history.replaceState(null, "", "?cam=" + encodeURIComponent(cam) + "&w=" + win);
+  $("seg").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  load();
+});
+let rz;
+new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { if (lastData){ drawSeries(lastData.series || [], new Date(lastData.now).getTime()); drawHours(lastData.hourly || []); } }, 120); }).observe(document.querySelector("main"));
+$("refreshBtn").addEventListener("click", () => { retried = false; load(); });
+
+setInterval(() => { if (document.visibilityState === "visible") load(); }, 120000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && Date.now() - lastOk > 60000) load();
+});
+
+setLegend();
+load();
+</script>
+</body>
+</html>
