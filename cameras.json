@@ -6,7 +6,7 @@
                [0.8125, 0.625], [0.789, 0.875], [1, 0.917], [1, 1], [0, 1]]
     }
   },
-  "sample": ["lamar-n-university"],
+  "sample": ["lamar-n-university", "lakeland-treetops"],
   "video": {
     "university-e-ms7": {
       "name": "University Ave E at MS 7", "stream": "060205", "host": "streamingjxn4",
