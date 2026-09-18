@@ -1,0 +1,5 @@
+cam_*/
+cam_data/
+.env
+*.pt
+__pycache__/
