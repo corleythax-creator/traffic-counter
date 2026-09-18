@@ -47,6 +47,7 @@ a.sign{display:block;text-decoration:none;transition:transform .12s ease, box-sh
 a.sign:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.18)}
 a.sign:focus-visible{outline:3px solid var(--c2);outline-offset:3px}
 .more{width:100%;font-weight:600;opacity:.9;margin-top:2px}
+.thumb{grid-column:1/-1;display:block;width:min(100%, 260px);aspect-ratio:352/240;height:auto;object-fit:cover;border-radius:4px;background:rgba(255,255,255,.12)}
 .sign-inner{border:3px solid var(--sign-ink);border-radius:8px;padding:12px 14px 12px;height:100%;
   display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:end;position:relative}
 .chip{position:absolute;top:10px;right:12px;width:28px;height:6px;border-radius:3px;background:var(--chip)}
@@ -108,7 +109,7 @@ footer p + p{margin-top:8px}
     </div>
     <div class="key" id="key1"></div>
     <div class="chart" id="chart"></div>
-    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time; tap a camera sign above for its minute-by-minute view.</p>
+    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time; tap a camera sign above for its minute-by-minute view. Camera pictures refresh with the counts.</p>
   </section>
 
   <section>
@@ -162,10 +163,14 @@ const fmtDayShort = t => new Intl.DateTimeFormat("en-US",{timeZone:TZ,month:"sho
 function ago(ms){ const m = Math.round(ms/60000); if (m < 1) return "just now"; if (m < 60) return m + " min ago";
   const h = Math.floor(m/60); return h + " hr " + (m%60) + " min ago"; }
 
+// Snapshot thumbnails refresh in 15-second slots so viewers share cached images
+const snapSlot = () => Math.floor(Date.now() / 15000);
+
 // Sign cards, grouped by city
 const signHtml = (c, i) => `
   <a class="sign" style="--gs:${c.sign}" href="/camera.html?cam=${encodeURIComponent(c.id)}" aria-label="${esc(c.a + ' ' + c.b)}: minute-by-minute detail">
     <div class="sign-inner" style="--chip:${c.color}">
+      <img class="thumb" id="t${i}" src="/api/snapshot?cam=${encodeURIComponent(c.id)}&t=${snapSlot()}" alt="Latest snapshot from ${esc(c.a + ' ' + c.b)}" loading="lazy" decoding="async">
       <div class="legend">${esc(c.a)}<span>${esc(c.b)}</span></div>
       <div class="now"><div class="n" id="n${i}">–</div><div class="l">in view now</div></div>
       <div class="meta">
@@ -227,6 +232,7 @@ function render(d){
   });
   $("methodNote").textContent = oldModel ?
     "Lakeland Dr S at Treetops's older frames were counted with an earlier method (whole image only) that misses more vehicles in heavy traffic; new frames use the same method as the other cameras." : "";
+  CAMS.forEach((c, i) => { const t = $("t"+i); if (t) t.src = "/api/snapshot?cam=" + encodeURIComponent(c.id) + "&t=" + snapSlot(); });
   drawSeries(now); drawHours(); drawVideo(now);
 }
 
