@@ -36,29 +36,34 @@ h2{font-size:1.15rem;font-weight:800;margin:0}
 p{margin:0}
 .lede{color:var(--muted);font-size:.95rem;margin-bottom:16px}
 
-.signs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-.grp{display:flex;align-items:center;gap:10px;margin:22px 0 10px;font-size:1.15rem;font-weight:800}
+.signs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (max-width:640px){ .signs{grid-template-columns:1fr} }
+.grp{display:flex;align-items:center;gap:10px;margin:18px 0 8px;font-size:1.05rem;font-weight:800}
 .grp:first-child{margin-top:0}
 .grp i{width:28px;height:6px;border-radius:3px;background:var(--gc)}
 .key .kg{font-weight:800;color:var(--ink)}
 .key svg{vertical-align:middle;margin-right:6px}
-.sign{background:var(--gs, var(--sign));color:var(--sign-ink);border-radius:12px;padding:5px}
+.sign{background:var(--gs, var(--sign));color:var(--sign-ink);border-radius:10px;padding:4px}
 a.sign{display:block;text-decoration:none;transition:transform .12s ease, box-shadow .12s ease}
 a.sign:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.18)}
 a.sign:focus-visible{outline:3px solid var(--c2);outline-offset:3px}
-.more{width:100%;font-weight:600;opacity:.9;margin-top:2px}
-.thumb{grid-column:1/-1;display:block;width:min(100%, 260px);aspect-ratio:352/240;height:auto;object-fit:cover;border-radius:4px;background:rgba(255,255,255,.12)}
-.sign-inner{border:3px solid var(--sign-ink);border-radius:8px;padding:12px 14px 12px;height:100%;
-  display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:end;position:relative}
+.thumb{grid-area:thumb;display:block;width:112px;aspect-ratio:352/240;height:auto;object-fit:cover;border-radius:3px;background:rgba(255,255,255,.12)}
+.sign-inner{border:2px solid var(--sign-ink);border-radius:7px;padding:8px 10px;height:100%;
+  display:grid;grid-template-columns:112px 1fr auto;grid-template-areas:"thumb legend now" "avgs avgs avgs" "meta meta meta";
+  gap:6px 10px;align-items:center;position:relative}
+.avgs{grid-area:avgs;display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid rgba(255,255,255,.35);padding-top:6px;text-align:center}
+.avgs div + div{border-left:1px solid rgba(255,255,255,.35)}
+.avgs b{display:block;font-size:1.15rem;font-weight:800;line-height:1.1}
+.avgs span{font-size:.72rem;opacity:.9}
 .chip{position:absolute;top:10px;right:12px;width:28px;height:6px;border-radius:3px;background:var(--chip)}
-.legend{font-weight:800;font-size:1.3rem;line-height:1.05}
-.legend span{display:block;font-weight:600;font-size:.72em;opacity:.9;margin-top:3px}
-.now{text-align:right}
-.now .n{font-weight:800;font-size:3.2rem;line-height:.9}
-.now .l{font-size:.8rem;opacity:.92}
-.meta{grid-column:1/-1;font-size:.82rem;opacity:.95;display:flex;flex-wrap:wrap;gap:4px 14px}
-.meta .st{display:flex;gap:6px;align-items:center;width:100%}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--sign-ink);flex:none}
+.legend{grid-area:legend;font-weight:800;font-size:1.05rem;line-height:1.1;align-self:start}
+.legend span{display:block;font-weight:600;font-size:.8em;opacity:.9;margin-top:2px}
+.now{grid-area:now;text-align:right;align-self:start}
+.now .n{font-weight:800;font-size:2.4rem;line-height:.9}
+.now .l{font-size:.72rem;opacity:.92}
+.meta{grid-area:meta;font-size:.74rem;opacity:.92;display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center}
+.meta .st{display:flex;gap:5px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--sign-ink);flex:none}
 .dot.stale{background:#F0B429}
 
 section{margin-top:28px}
@@ -109,7 +114,7 @@ footer p + p{margin-top:8px}
     </div>
     <div class="key" id="key1"></div>
     <div class="chart" id="chart"></div>
-    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time; tap a camera sign above for its minute-by-minute view. Camera pictures refresh with the counts.</p>
+    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time; tap a camera above for its minute-by-minute view. Camera pictures refresh with the counts.</p>
   </section>
 
   <section>
@@ -173,10 +178,10 @@ const signHtml = (c, i) => `
       <img class="thumb" id="t${i}" src="/api/snapshot?cam=${encodeURIComponent(c.id)}&t=${snapSlot()}" alt="Latest snapshot from ${esc(c.a + ' ' + c.b)}" loading="lazy" decoding="async">
       <div class="legend">${esc(c.a)}<span>${esc(c.b)}</span></div>
       <div class="now"><div class="n" id="n${i}">–</div><div class="l">in view now</div></div>
+      <div class="avgs"><div><b id="v5_${i}">–</b><span>5-min avg</span></div><div><b id="v15_${i}">–</b><span>15-min avg</span></div><div><b id="v60_${i}">–</b><span>1-hr avg</span></div></div>
       <div class="meta">
         <div class="st"><span class="dot" id="d${i}"></span><span id="s${i}">Loading…</span></div>
-        <span id="a${i}"></span><span id="p${i}"></span><span id="h${i}"></span>
-        <span class="more">Minute by minute &rsaquo;</span>
+        <span id="p${i}"></span><span id="h${i}"></span>
       </div>
     </div>
   </a>`;
@@ -218,17 +223,17 @@ function render(d){
       const age = now - new Date(x.latest.at).getTime(), stale = age > 75*60000;
       $("n"+i).textContent = x.latest.total ?? "–";
       $("d"+i).classList.toggle("stale", stale);
-      $("s"+i).textContent = "Latest " + fmtTime(x.latest.at) + " (" + ago(age) + ")" + (stale ? ", no new data for over an hour" : "")
-        + (x.latest.view === "changed" ? ". Camera was re-aimed; counting with a general zone" : "");
+      $("s"+i).textContent = fmtTime(x.latest.at) + (stale ? ", no new data for over an hour" : "")
+        + (x.latest.view === "changed" ? ", camera re-aimed (general zone)" : "");
       if (x.latest.model === "yolo11n.pt") oldModel = true;
     } else {
       $("n"+i).textContent = "–"; $("d"+i).classList.add("stale");
       $("s"+i).textContent = "Waiting for the first upload";
     }
-    $("a"+i).textContent = x.avg == null ? "" : "Avg " + Number(x.avg).toFixed(2) + " per frame";
+    const fmtAvg = v => v == null ? "–" : Number(v).toFixed(1);
+    $("v5_"+i).textContent = fmtAvg(x.avg_5); $("v15_"+i).textContent = fmtAvg(x.avg_15); $("v60_"+i).textContent = fmtAvg(x.avg_60);
     $("p"+i).textContent = x.peak ? "Peak " + x.peak.total + " at " + fmtTime(x.peak.at) : "";
-    $("h"+i).textContent = (x.latest && x.latest.people != null) ? "People now " + x.latest.people +
-      (x.people_avg != null ? ", avg " + Number(x.people_avg).toFixed(1) : "") : "";
+    $("h"+i).textContent = (x.latest && x.latest.people != null) ? "People " + x.latest.people : "";
   });
   $("methodNote").textContent = oldModel ?
     "Lakeland Dr S at Treetops's older frames were counted with an earlier method (whole image only) that misses more vehicles in heavy traffic; new frames use the same method as the other cameras." : "";
