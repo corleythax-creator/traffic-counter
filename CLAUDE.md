@@ -137,7 +137,9 @@ Preview the dashboard: serve `dashboard/` and mock `/api/*`, or render with Play
 - Captures from multiple cameras are staggered (`INTERVAL / len(cams)`) so timestamps never collide.
 - `upload.py` never re-uploads a frame whose image has been deleted, so deleting `.last_upload` to recount cannot blank out existing rows.
 - MDOT cameras marked PTZ (pan-tilt-zoom) get re-aimed often; watch `view_status`.
-- Known accuracy limits: dense queues are undercounted (cars merge or are hidden; far queue is outside zones); night counts are rougher; people counts are a rough index only.
+- Known accuracy limits: dense queues are undercounted (cars merge or are hidden; far queue is outside zones); people counts are a rough index only.
+- Night is not "rougher", it is close to blind on the cameras that switch to infrared. Measured Sep 18: `lakeland-n-airport` went from 16.6 detections/frame in colour to 0.34 in infrared (98% loss), `lakeland-treetops` 10.4 to 2.6 (75%). The Oxford cameras never switched to infrared that night and held steady, so Jackson-vs-Oxford after dark is not a like-for-like comparison. `DET_FLOOR` is already 0.10 and there is nothing there to find, so lowering the confidence threshold does not recover it; only a model that handles infrared, or a motion-based counter like `video.py`, would. `view_status = 'night'` marks these frames and the dashboard fades them.
+- `view_status = 'changed'` means the frame was counted with `FALLBACK_ZONE` (lower 75%), which is looser than a drawn zone and reads high: on Sep 18 the drawn zones kept 60-87% of detections where the fallback kept 81-99%. A camera sitting on `changed` for hours is usually a stale reference; refresh it by deleting its `camera_refs` row (the zone is regenerated from the code, so nothing hand-tuned is lost as long as the stored zone still matches the base zone).
 - Earlier Claude-hosted dashboards (claude.ai artifacts) read Supabase through the owner's connector; the Vercel dashboard is the maintained one.
 
 ## Style for user-facing text

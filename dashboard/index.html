@@ -98,6 +98,8 @@ button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
   touch-action:pan-y;-webkit-user-select:none;user-select:none;cursor:crosshair}
 .chart svg{display:block;width:100%;height:auto;overflow:visible}
 .chart text{fill:var(--muted);font-family:inherit;font-size:12px}
+/* infrared stretches: the counts there are a floor, not a reading */
+.sline.night{opacity:.3}
 .guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
 .tip{position:absolute;top:6px;left:0;background:var(--ink);color:var(--bg);font-size:.85rem;line-height:1.35;
   padding:6px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:2}
@@ -158,11 +160,11 @@ footer p + p{margin-top:8px}
     <div class="head"><h2>Typical hour of the day</h2></div>
     <div class="key" id="key2"></div>
     <div class="chart" id="hours"></div>
-    <p class="note">Average vehicles per frame for each hour, across everything recorded so far. Fills in as the cameras run through full days.</p>
+    <p class="note">Average vehicles per frame for each hour, across everything recorded so far. Faded stretches are hours the camera is normally on infrared, where it undercounts heavily; the Jackson cameras switch to infrared after dark and the Oxford ones do not, so their night hours are not comparable. Fills in as the cameras run through full days.</p>
   </section>
 
   <footer>
-    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. The bars on each camera show the last 15 minutes one minute at a time, with the past hour's average drawn through them as a dashed line; a blank slot is a minute with no frames, not a minute with no traffic.</p>
+    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. After dark the Jackson cameras switch to infrared and the model detects far less than is really on the road - those stretches are faded on the charts and marked on the card. The bars on each camera show the last 15 minutes one minute at a time, with the past hour's average drawn through them as a dashed line; a blank slot is a minute with no frames, not a minute with no traffic.</p>
     <p id="methodNote"></p>
     <p>Source: MDOT (Mississippi Department of Transportation) traffic cameras at mdottraffic.com.</p>
     <p style="margin-top:10px"><button class="refresh" id="refreshBtn">Refresh now</button></p>
@@ -352,6 +354,7 @@ function render(d){
       $("n"+i).textContent = x.latest.total ?? "–";
       $("d"+i).classList.toggle("stale", stale);
       $("s"+i).textContent = fmtTime(x.latest.at) + (stale ? ", no new data for over an hour" : "")
+        + (x.latest.view === "night" ? ", infrared - undercounting badly" : "")
         + (x.latest.view === "changed" ? ", camera re-aimed (general zone)" : "");
       if (x.latest.model === "yolo11n.pt") oldModel = true;
     } else {
@@ -384,14 +387,24 @@ function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax){
   g += xLabel(x);
   let lines = "";
   series.forEach(s => {
-    // break the line where there is a gap bigger than 1.5 buckets
-    let path = "", prev = null;
-    s.pts.forEach(p => {
-      const cmd = (prev === null || p.x - prev > s.gap) ? "M" : "L";
-      path += `${cmd}${x(p.x).toFixed(1)},${y(p.v).toFixed(1)}`; prev = p.x;
-    });
-    if (path) lines += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`;
-    if (s.pts.length < 40) s.pts.forEach(p => { lines += `<circle cx="${x(p.x)}" cy="${y(p.v)}" r="2.5" fill="${s.color}"/>`; });
+    // Two paths per camera: the ordinary line, and the stretches where the camera was
+    // in infrared. Those are drawn faint because the model barely detects anything on
+    // an IR frame, so the number is a floor, not a reading. Both break where there is
+    // a gap bigger than the series' own gap.
+    const path = {day: "", night: ""};
+    const at = p => `${x(p.x).toFixed(1)},${y(p.v).toFixed(1)}`;
+    for (let i = 0; i < s.pts.length; i++){
+      const p = s.pts[i], prev = i ? s.pts[i-1] : null;
+      const key = p.night ? "night" : "day";
+      const joined = prev && p.x - prev.x <= s.gap;
+      // starting a run: begin at the previous point when there is one to join to, so
+      // the day and night halves meet instead of leaving a notch between them
+      if (!joined || prev.night !== p.night) path[key] += "M" + (joined ? at(prev) + "L" : "") + at(p);
+      else path[key] += "L" + at(p);
+    }
+    const stroke = (d, cls) => d ? `<path class="${cls}" d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>` : "";
+    lines += stroke(path.day, "sline") + stroke(path.night, "sline night");
+    if (s.pts.length < 40) s.pts.forEach(p => { lines += `<circle cx="${x(p.x)}" cy="${y(p.v)}" r="2.5" fill="${s.color}"${p.night ? ' opacity=".3"' : ""}/>`; });
   });
   const marks = series.map((s, i) => `<circle class="mk" data-s="${i}" r="5" fill="${s.color}" stroke="var(--panel)" stroke-width="2" visibility="hidden"/>`).join("");
   $(id).innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img">${g}${lines}<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>${marks}</svg>`;
@@ -417,7 +430,7 @@ function smooth(pts, spanMs){
     const t = pts[i].x;
     while (hi < pts.length && pts[hi].x <= t + half){ wsum += pts[hi].v * pts[hi].n; nsum += pts[hi].n; hi++; }
     while (lo < pts.length && pts[lo].x < t - half){ wsum -= pts[lo].v * pts[lo].n; nsum -= pts[lo].n; lo++; }
-    if (nsum) out.push({x: t, v: wsum / nsum, n: pts[i].n, raw: pts[i].v});
+    if (nsum) out.push({x: t, v: wsum / nsum, n: pts[i].n, raw: pts[i].v, night: pts[i].night});
   }
   return out;
 }
@@ -434,7 +447,9 @@ function drawSeries(now){
   const series = shown.map(c => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash,
     gap: bucket*1000*3,
     pts: smooth(((d.cams[c.id] || {}).series || [])
-      .map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n}))
+      // a bucket counts as night when most of its frames were infrared: that is when
+      // the model stops seeing vehicles on these cameras, so the line is marked there
+      .map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n, night: (s.night || 0) * 2 > s.n}))
       .filter(p => !isNaN(p.v) && p.x >= t0), maMin * 60000)}));
   const all = series.flatMap(s => s.pts);
   if (!all.length){ $("chart").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">No frames from the selected cameras in the last ${interval}.</p>`; scrub.chart = null; $("chartNote").textContent = ""; return; }
@@ -448,7 +463,9 @@ function drawSeries(now){
   scrub.chart.smoothed = smoothingLabel(maMin) + " avg";
   $("chartNote").textContent = "Each line is that camera's " + smoothingLabel(maMin) +
     " moving average of vehicles per frame, sampled " + label +
-    ". Tap a camera name above to hide or show it, or a city to toggle the whole group. " +
+    ". Faded stretches are hours the camera spent on infrared, where the model detects " +
+    "far less than is really there - read those as a floor, not a count. " +
+    "Tap a camera name above to hide or show it, or a city to toggle the whole group. " +
     "Touch and slide across the chart to compare the cameras at any time.";
 }
 
@@ -564,7 +581,8 @@ function drawHours(){
   const W = boxW("hours"), H = W < 500 ? 190 : 220, L = 40, R = 14, T = 12, B = 28;
   const shown = CAMS.filter(c => !hidden.has(c.id));
   const series = shown.map(c => ({name: camLabel(c), color: c.color, dash: c.dash, gap: 1.5,
-    pts: ((d.cams[c.id] || {}).hourly || []).map(h => ({x: h.hr, v: Number(h.avg), n: h.n}))}));
+    pts: ((d.cams[c.id] || {}).hourly || []).map(h => ({x: h.hr, v: Number(h.avg), n: h.n,
+      night: (h.night || 0) * 2 > h.n}))}));
   const all = series.flatMap(s => s.pts);
   if (!all.length){ $("hours").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">${shown.length ? "No data yet." : "No cameras selected."}</p>`; scrub.hours = null; return; }
   const ymax = niceMax(Math.max(...all.map(p => p.v)));

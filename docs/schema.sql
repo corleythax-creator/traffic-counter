@@ -77,7 +77,8 @@ alter table public.camera_refs enable row level security;
 --     { now, cams: { <slug>: { latest{at,total,people,model,view}, avg_5, avg_15, avg_60,
 --                              frames, avg, people_avg, peak{at,total},
 --                              last15[{t,avg,peak,n}]  -- 1-min buckets, always the last 15 min
---                              series[{t,avg,peak,n}], hourly[{hr,avg,n}] } },
+--                              night_frames, fallback_frames, day_avg,  -- comparability
+--                              series[{t,avg,peak,n,night,fallback}], hourly[{hr,avg,n,night}] } },
 --       video: [{camera, t, line, veh, secs}] }
 --   traffic_camera(cam text, win text default '1h') returns json
 --     win: 1h (1-min buckets) | 3h (1-min) | 6h (5-min) | 12h (1-min)
