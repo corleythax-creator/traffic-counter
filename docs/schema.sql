@@ -72,7 +72,7 @@ alter table public.camera_refs enable row level security;
 
 -- Dashboard RPC functions: security definer, read-only aggregates, granted to anon.
 --   traffic_dashboard(win text default '6h') returns json
---     win: 2h (1-min buckets, the front page default) | 8h (5-min) | 24h (30-min)
+--     win: 1h (1-min buckets) | 2h (1-min, the front page default) | 8h (5-min) | 24h (30-min)
 --          | 7d (2-hour); 6h (15-min) still answers but the page no longer asks for it
 --     { now, cams: { <slug>: { latest{at,total,people,model,view}, avg_5, avg_15, avg_60,
 --                              frames, avg, people_avg, peak{at,total},

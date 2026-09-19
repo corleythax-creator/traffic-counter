@@ -80,9 +80,11 @@ a.sign:focus-visible{outline:3px solid var(--c2);outline-offset:3px}
 
 section{margin-top:28px}
 .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--panel)}
 .seg button{font:inherit;font-size:.9rem;border:0;background:none;color:var(--ink);padding:6px 12px;cursor:pointer}
 .seg button + button{border-left:1px solid var(--rule)}
+/* five windows still fit one row on a phone with tighter padding */
+@media (max-width:520px){ .seg button{padding:6px 8px;font-size:.85rem} }
 .seg button[aria-pressed="true"]{background:var(--sign);color:var(--sign-ink);font-weight:600}
 button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
 .key{display:flex;gap:16px;flex-wrap:wrap;font-size:.88rem;color:var(--muted);margin-bottom:8px}
@@ -138,6 +140,7 @@ footer p + p{margin-top:8px}
     <div class="head">
       <h2 id="chartTitle">Vehicles in view over time</h2>
       <div class="seg" role="group" aria-label="Time window" id="seg">
+        <button data-w="1h" aria-pressed="false">1 hour</button>
         <button data-w="2h" aria-pressed="true">2 hours</button>
         <button data-w="8h" aria-pressed="false">8 hours</button>
         <button data-w="24h" aria-pressed="false">24 hours</button>
@@ -182,6 +185,7 @@ const CAMS = [
 GROUPS.forEach(g => CAMS.filter(c => c.group === g.name).forEach((c, k) => { c.color = g.color; c.sign = g.sign; c.dash = DASHES[k % DASHES.length]; }));
 const swatch = (color, dash) => `<svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="${color}" stroke-width="3" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/></svg>`;
 const WINDOWS = {
+  "1h":  {interval:"1 hour",  bucket:60,   span:3600,   label:"per minute"},
   "2h":  {interval:"2 hours", bucket:60,   span:7200,   label:"per minute"},
   "8h":  {interval:"8 hours", bucket:300,  span:28800,  label:"per 5 minutes"},
   "24h": {interval:"24 hours",bucket:1800, span:86400,  label:"per 30 minutes"},
