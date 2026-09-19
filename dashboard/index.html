@@ -12,18 +12,21 @@
 :root{
   --bg:#E9EBE6; --panel:#F7F8F5; --hover:#EDEFEA; --ink:#1F2427; --muted:#5F676C; --rule:#CDD1CB;
   --warn:#9A3B12; --c2:#C47F00;
+  --heat0:#9AA4A8; --heat1:#C2643C; --heat2:#96200C;
   --jackson:#2F5F98; --oxford:#B5452F; --nola:#6B3FA0;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#16191B; --panel:#1F2326; --hover:#272C30; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
-    --warn:#F08A5D; --c2:#F0B429; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
+    --warn:#F08A5D; --c2:#F0B429; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0;
+    --heat0:#6E7A80; --heat1:#D07A54; --heat2:#FF8E6E; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#16191B; --panel:#1F2326; --hover:#272C30; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
-  --warn:#F08A5D; --c2:#F0B429; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
+  --warn:#F08A5D; --c2:#F0B429; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0;
+  --heat0:#6E7A80; --heat1:#D07A54; --heat2:#FF8E6E; color-scheme:dark;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -169,7 +172,7 @@ footer p + p{margin-top:8px}
   </section>
 
   <footer>
-    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. After dark the Jackson cameras switch to infrared and the model detects far less than is really on the road - those stretches are faded on the charts and marked on the card. The sparkline on each row is the last 15 minutes a minute at a time, with the past hour's average drawn through it as a dashed line, so a camera running above its own recent hour reads at a glance; the line breaks at minutes with no frames rather than drawing through them, because an unsampled minute is not a quiet one. Open a row for its live video.</p>
+    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. After dark the Jackson cameras switch to infrared and the model detects far less than is really on the road - those stretches are faded on the charts and marked on the card. The sparkline on each row is the last 15 minutes a minute at a time, with the past hour's average drawn through it as a dashed line. It deepens toward red the further a minute runs above that camera's own past hour - neutral at or below the hour, red from about half again above it - so the colour means the same thing on a busy junction and a quiet one. The line breaks at minutes with no frames rather than drawing through them, because an unsampled minute is not a quiet one. Open a row for its live video.</p>
     <p id="methodNote"></p>
     <p>Source: MDOT (Mississippi Department of Transportation) traffic cameras at mdottraffic.com.</p>
     <p style="margin-top:10px"><button class="refresh" id="refreshBtn">Refresh now</button></p>
@@ -242,8 +245,21 @@ function readTrend(avg15, avg60){
   return dir + ", " + Math.round(Math.abs(rel) * 100) + "% " + side + " the past hour";
 }
 
+// The line deepens toward red the further a minute runs above that camera's own
+// past hour, so "running hot" reads off the colour without doing the arithmetic.
+// Anchored to the camera's own hour rather than to raw vehicles, so a busy junction
+// and a quiet one go red at the same point -- and the dashed reference line is
+// exactly the ramp's midpoint. Real minutes run about 0.4x to 2.6x their hour.
+// One hue family, lightness falling and chroma rising as the value climbs (the
+// anchor flips in dark mode), so the climb still reads in greyscale and under
+// colour-blindness rather than depending on hue alone.
+// Anchored above the hour, not around it: at 0.5/1.0/1.8 an ordinary minute already
+// sat mid-ramp and almost every line read red, which says nothing. Neutral until a
+// camera is clearly above its own hour, red only where it really is busy.
+const HEAT = {lo: 0.85, mid: 1.3, hi: 1.9};   // multiples of the reference
+
 // vals is one slot per period, null where nothing was sampled, so gaps stay gaps.
-function sparkSvg(vals, ref, color, title){
+function sparkSvg(vals, ref, uid, title){
   const W = 112, H = 26, pad = 3;
   const seen = vals.filter(v => v != null);
   const head = `<svg class="spk" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title>`;
@@ -259,16 +275,28 @@ function sparkSvg(vals, ref, color, title){
   // a single sampled slot has no line to draw, so give it a dot to sit on
   const lone = seen.length === 1;
   const li = vals.length - 1 - [...vals].reverse().findIndex(v => v != null);
-  const refLine = ref != null && ref > 0
+  // With an hour to compare against the ramp is anchored to it; without one (a video
+  // camera, or a camera whose hour is empty) it spans the sparkline's own range.
+  const hot = ref != null && ref > 0;
+  const lo = hot ? ref*HEAT.lo : top*0.25, mid = hot ? ref*HEAT.mid : top*0.6, hi = hot ? ref*HEAT.hi : top;
+  const yHi = y(hi), yLo = y(lo);
+  const t = Math.max(0.02, Math.min(0.98, (y(mid) - yHi) / ((yLo - yHi) || 1)));
+  // stop-color has to come through style: an SVG presentation attribute cannot parse var()
+  const grad = `<linearGradient id="${uid}" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="${yHi.toFixed(1)}" y2="${yLo.toFixed(1)}">` +
+    `<stop offset="0" style="stop-color:var(--heat2)"/>` +
+    `<stop offset="${t.toFixed(3)}" style="stop-color:var(--heat1)"/>` +
+    `<stop offset="1" style="stop-color:var(--heat0)"/></linearGradient>`;
+  const paint = `url(#${uid})`;
+  const refLine = hot
     ? `<line x1="${pad}" x2="${W-pad}" y1="${y(ref).toFixed(1)}" y2="${y(ref).toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>` : "";
-  const line = lone ? "" : `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-  return head + refLine + line +
-    `<circle cx="${x(li).toFixed(1)}" cy="${y(vals[li]).toFixed(1)}" r="2.4" fill="${color}"/></svg>`;
+  const line = lone ? "" : `<path d="${d}" fill="none" stroke="${paint}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  return head + `<defs>${grad}</defs>` + refLine + line +
+    `<circle cx="${x(li).toFixed(1)}" cy="${y(vals[li]).toFixed(1)}" r="2.4" fill="${paint}"/></svg>`;
 }
 
 // Last 15 one-minute buckets for a snapshot camera, aligned to the clock so every
 // row's sparkline covers the same minutes.
-function snapSpark(x, now, c){
+function snapSpark(x, now, c, i){
   const end = Math.floor(now / 60000), start = end - (SPARK_MIN - 1);
   const by = new Map();
   (x.last15 || []).forEach(r => { const m = Math.floor(new Date(r.t).getTime() / 60000);
@@ -278,12 +306,12 @@ function snapSpark(x, now, c){
   const ref = x.avg_60 == null ? null : Number(x.avg_60);
   const title = camLabel(c) + ", last 15 minutes: " + readTrend(x.avg_15, x.avg_60).toLowerCase() +
     (ref != null ? " (dashed line = past hour, " + ref.toFixed(1) + ")" : "");
-  return sparkSvg(vals, ref, c.color, title);
+  return sparkSvg(vals, ref, "sp-g" + i, title);
 }
 
 // Video cameras run in windows a few minutes apart, so 15 minutes would be two or
 // three points. These use the last 8 counting windows instead.
-function videoSpark(d, c){
+function videoSpark(d, c, i){
   const by = new Map();
   (d.video || []).filter(r => r.camera === c.id).forEach(r => {
     const t = new Date(r.t).getTime();
@@ -296,7 +324,7 @@ function videoSpark(d, c){
     ? camLabel(c) + ", last " + ts.length + " counting window" + (ts.length === 1 ? "" : "s") +
       " to " + fmtTime(ts[ts.length-1]) + " (dashed line = their average, " + Math.round(avg) + "/hr)"
     : camLabel(c) + ": no counting windows yet";
-  return sparkSvg(vals, avg, c.color, title);
+  return sparkSvg(vals, avg, "sp-g" + i, title);
 }
 
 // One row per camera. The header strip carries the column labels so a row does not
@@ -429,7 +457,7 @@ function render(d){
       $("n"+i).textContent = rate == null ? "–" : rate;
       note = last ? "Latest counting run " + fmtTime(last) : "Waiting for the first counting run";
       ["v5_", "v15_", "v60_"].forEach(k => { $(k+i).textContent = "–"; $(k+i).parentNode.classList.add("none"); });
-      $(("sp")+i).innerHTML = videoSpark(d, c);
+      $("sp"+i).innerHTML = videoSpark(d, c, i);
     } else {
       if (x.latest){
         const stale = now - new Date(x.latest.at).getTime() > 75*60000;
@@ -446,7 +474,7 @@ function render(d){
         note = "Waiting for the first upload";
       }
       $("v5_"+i).textContent = fmtAvg(x.avg_5); $("v15_"+i).textContent = fmtAvg(x.avg_15); $("v60_"+i).textContent = fmtAvg(x.avg_60);
-      $("sp"+i).innerHTML = snapSpark(x, now, c);
+      $("sp"+i).innerHTML = snapSpark(x, now, c, i);
     }
     $("tg"+i).innerHTML = tag;
     $("s"+i).textContent = note;
