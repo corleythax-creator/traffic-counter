@@ -1,9 +1,9 @@
 // Returns aggregated traffic counts for the dashboard. Calls a read-only
 // Supabase function with the public (publishable) key; raw tables stay private.
-const WINDOWS = new Set(["2h", "6h", "24h", "7d"]);
+const WINDOWS = new Set(["2h", "8h", "24h", "7d"]);
 
 export default async function handler(req, res) {
-  const w = WINDOWS.has(req.query.w) ? req.query.w : "6h";
+  const w = WINDOWS.has(req.query.w) ? req.query.w : "2h";
   try {
     const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/rpc/traffic_dashboard`, {
       method: "POST",

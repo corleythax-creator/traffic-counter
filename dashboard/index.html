@@ -87,11 +87,15 @@ section{margin-top:28px}
 button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
 .key{display:flex;gap:16px;flex-wrap:wrap;font-size:.88rem;color:var(--muted);margin-bottom:8px}
 .key i{display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.key button{font:inherit;font-size:inherit;color:inherit;background:none;border:0;padding:1px 3px;
+  border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;white-space:nowrap}
+.key button:hover{background:var(--panel)}
+.key button.kg{font-weight:800;color:var(--ink)}
+.key button[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
 .chart{position:relative;background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:12px 10px 6px;
   touch-action:pan-y;-webkit-user-select:none;user-select:none;cursor:crosshair}
 .chart svg{display:block;width:100%;height:auto;overflow:visible}
 .chart text{fill:var(--muted);font-family:inherit;font-size:12px}
-.ctxbar{fill:var(--muted);opacity:.32}
 .guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
 .tip{position:absolute;top:6px;left:0;background:var(--ink);color:var(--bg);font-size:.85rem;line-height:1.35;
   padding:6px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:2}
@@ -121,7 +125,7 @@ footer p + p{margin-top:8px}
       <h2 id="chartTitle">Vehicles in view over time</h2>
       <div class="seg" role="group" aria-label="Time window" id="seg">
         <button data-w="2h" aria-pressed="true">2 hours</button>
-        <button data-w="6h" aria-pressed="false">6 hours</button>
+        <button data-w="8h" aria-pressed="false">8 hours</button>
         <button data-w="24h" aria-pressed="false">24 hours</button>
         <button data-w="7d" aria-pressed="false">7 days</button>
       </div>
@@ -170,7 +174,7 @@ GROUPS.forEach(g => CAMS.filter(c => c.group === g.name).forEach((c, k) => { c.c
 const swatch = (color, dash) => `<svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="${color}" stroke-width="3" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/></svg>`;
 const WINDOWS = {
   "2h":  {interval:"2 hours", bucket:60,   span:7200,   label:"per minute"},
-  "6h":  {interval:"6 hours", bucket:900,  span:21600,  label:"per 15 minutes"},
+  "8h":  {interval:"8 hours", bucket:300,  span:28800,  label:"per 5 minutes"},
   "24h": {interval:"24 hours",bucket:1800, span:86400,  label:"per 30 minutes"},
   "7d":  {interval:"7 days",  bucket:7200, span:604800, label:"per 2 hours"}
 };
@@ -257,9 +261,50 @@ const signHtml = (c, i) => `
   </a>`;
 $("signs").innerHTML = GROUPS.map(g => `<h2 class="grp" style="--gc:${g.sign}"><i aria-hidden="true"></i>${esc(g.name)}</h2>
   <div class="signs">${CAMS.map((c, i) => c.group === g.name ? signHtml(c, i) : "").join("")}</div>`).join("");
-const keyHtml = GROUPS.map(g => `<span class="kg">${esc(g.name)}:</span>` +
-  CAMS.filter(c => c.group === g.name).map(c => `<span>${swatch(c.color, c.dash)}${esc(c.a + " " + c.b.replace(/^at /, "@ "))}</span>`).join("")).join("");
-$("key1").innerHTML = keyHtml; $("key2").innerHTML = keyHtml;
+// Which cameras are switched off in the charts. The sign cards always show every
+// camera; this only filters the plots. Kept per browser so a choice survives a
+// reload, and tolerant of storage being unavailable (private windows, blocked
+// site data) because the page must still work without it.
+const hidden = new Set();
+try { (JSON.parse(localStorage.getItem("hiddenCams") || "[]") || []).forEach(id => {
+  if (CAMS.some(c => c.id === id)) hidden.add(id); }); } catch (_) {}
+function saveHidden(){ try { localStorage.setItem("hiddenCams", JSON.stringify([...hidden])); } catch (_) {} }
+
+const camLabel = c => c.a + " " + c.b.replace(/^at /, "@ ");
+function keyHtml(){
+  return GROUPS.map(g => {
+    const cams = CAMS.filter(c => c.group === g.name);
+    const on = cams.some(c => !hidden.has(c.id));
+    return `<button type="button" class="kg" data-group="${esc(g.name)}" aria-pressed="${on}" ` +
+             `title="${esc((on ? "Hide" : "Show") + " all " + g.name + " cameras")}">${esc(g.name)}</button>` +
+      cams.map(c => `<button type="button" class="kc" data-cam="${esc(c.id)}" aria-pressed="${!hidden.has(c.id)}" ` +
+        `title="${esc((hidden.has(c.id) ? "Show " : "Hide ") + camLabel(c))}">` +
+        `${swatch(c.color, c.dash)}${esc(camLabel(c))}</button>`).join("");
+  }).join("");
+}
+function renderKeys(){ const h = keyHtml(); $("key1").innerHTML = h; $("key2").innerHTML = h; }
+function redraw(){
+  renderKeys();
+  if (!lastData) return;
+  const now = new Date(lastData.now).getTime();
+  drawSeries(now); drawHours();
+}
+function onKeyClick(e){
+  const cb = e.target.closest("button[data-cam]");
+  if (cb){ const id = cb.dataset.cam;
+    if (hidden.has(id)) hidden.delete(id); else hidden.add(id);
+    saveHidden(); redraw(); return; }
+  const gb = e.target.closest("button[data-group]");
+  if (!gb) return;
+  const cams = CAMS.filter(c => c.group === gb.dataset.group);
+  // a group button turns its whole city off, or back on when any of it is already off
+  const on = cams.some(c => !hidden.has(c.id));
+  cams.forEach(c => on ? hidden.add(c.id) : hidden.delete(c.id));
+  saveHidden(); redraw();
+}
+$("key1").addEventListener("click", onKeyClick);
+$("key2").addEventListener("click", onKeyClick);
+renderKeys();
 
 function showMsg(t, b){ $("msgTitle").textContent = t; $("msgBody").textContent = b || ""; $("msg").hidden = false; }
 function hideMsg(){ $("msg").hidden = true; }
@@ -317,21 +362,13 @@ const scrub = {};
 
 function niceMax(v){ return Math.max(1, Math.ceil(v * 1.15 * 2) / 2); }
 
-function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax, bars){
+function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax){
   const pw = W-L-R, ph = H-T-B;
   const x = v => L + (v - xMin) / (xMax - xMin) * pw, y = v => T + ph - v / ymax * ph;
   let g = "";
   for (let k = 0; k <= 4; k++){ const v = ymax*k/4, yy = y(v);
     g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--rule)"/><text x="${L-6}" y="${yy+4}" text-anchor="end">${v % 1 ? v.toFixed(1) : v}</text>`; }
   g += xLabel(x);
-  let back = "";
-  if (bars && bars.pts.length){
-    const bw = bars.width;
-    bars.pts.forEach(p => {
-      const top = y(Math.min(p.v, ymax)), h = Math.max(p.v > 0 ? 1 : 0, T + ph - top);
-      back += `<rect class="ctxbar" x="${(x(p.x) - bw/2).toFixed(1)}" y="${(T+ph-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}"/>`;
-    });
-  }
   let lines = "";
   series.forEach(s => {
     // break the line where there is a gap bigger than 1.5 buckets
@@ -344,8 +381,8 @@ function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax, b
     if (s.pts.length < 40) s.pts.forEach(p => { lines += `<circle cx="${x(p.x)}" cy="${y(p.v)}" r="2.5" fill="${s.color}"/>`; });
   });
   const marks = series.map((s, i) => `<circle class="mk" data-s="${i}" r="5" fill="${s.color}" stroke="var(--panel)" stroke-width="2" visibility="hidden"/>`).join("");
-  $(id).innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img">${g}${back}${lines}<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>${marks}</svg>`;
-  scrub[id] = {W, xs: xs.map(v => ({v, px: x(v)})), series, y, x, bars};
+  $(id).innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img">${g}${lines}<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>${marks}</svg>`;
+  scrub[id] = {W, xs: xs.map(v => ({v, px: x(v)})), series, y, x};
 }
 
 // Smoothing window for the per-camera curves: a twenty-fourth of what is on
@@ -354,8 +391,8 @@ function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax, b
 function smoothingMinutes(spanSec, bucketSec){
   return Math.max(3, Math.round(Math.max(spanSec / 24, bucketSec * 3) / 60));
 }
-const smoothingLabel = m => m < 60 ? m + "-min"
-  : (m % 60 === 0 ? m / 60 : (m / 60).toFixed(1)) + "-hr";
+const smoothingLabel = m => m % 60 === 0 ? (m / 60) + "-hr"
+  : m < 120 ? m + "-min" : (m / 60).toFixed(1) + "-hr";
 
 // Centred moving average over a camera's buckets, each weighted by how many
 // frames it was built from. Centred because this is the shape of a period
@@ -376,38 +413,30 @@ function drawSeries(now){
   const d = lastData; if (!d) return;
   const {bucket, span, label, interval} = WINDOWS[win];
   const maMin = smoothingMinutes(span, bucket);
-  $("chartTitle").textContent = "Vehicles in view, " + label;
+  $("chartTitle").textContent = "Vehicles in view, " + smoothingLabel(maMin) + " moving average";
   const W = boxW("chart"), H = W < 500 ? 230 : 280, L = 40, R = 14, T = 12, B = 30;
   const t0 = now - span*1000;
-  const raw = CAMS.map(c => ((d.cams[c.id] || {}).series || [])
-    .map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n, peak: s.peak}))
-    .filter(p => !isNaN(p.v) && p.x >= t0));
-  // The bars are every camera pooled into one level per bucket -- frame-weighted,
-  // so it is the average vehicles per frame across the network, on the same scale
-  // as the per-camera curves and therefore the same axis.
-  const pool = new Map();
-  raw.forEach(pts => pts.forEach(p => {
-    const e = pool.get(p.x) || {w: 0, n: 0}; e.w += p.v * p.n; e.n += p.n; pool.set(p.x, e);
-  }));
-  const bars = [...pool.entries()].filter(([, e]) => e.n).map(([x, e]) => ({x, v: e.w / e.n, n: e.n}))
-    .sort((a, b) => a.x - b.x);
-  const series = CAMS.map((c, i) => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash,
-    gap: bucket*1000*3, pts: smooth(raw[i], maMin * 60000)}));
-  const all = series.flatMap(s => s.pts).concat(bars);
-  if (!all.length){ $("chart").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">No frames from any camera in the last ${interval}.</p>`; scrub.chart = null; return; }
+  const shown = CAMS.filter(c => !hidden.has(c.id));
+  if (!shown.length){ $("chart").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No cameras selected. Use the names above to switch them back on.</p>'; scrub.chart = null; $("chartNote").textContent = ""; return; }
+  const series = shown.map(c => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash,
+    gap: bucket*1000*3,
+    pts: smooth(((d.cams[c.id] || {}).series || [])
+      .map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n}))
+      .filter(p => !isNaN(p.v) && p.x >= t0), maMin * 60000)}));
+  const all = series.flatMap(s => s.pts);
+  if (!all.length){ $("chart").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">No frames from the selected cameras in the last ${interval}.</p>`; scrub.chart = null; $("chartNote").textContent = ""; return; }
   const ymax = niceMax(Math.max(...all.map(p => p.v)));
   const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
   const ticks = Math.max(2, Math.min(6, Math.floor((W-L-R) / 95)));
   const xLabel = x => { let g = ""; for (let i = 0; i <= ticks; i++){ const t = t0 + span*1000*i/ticks;
     g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
-  const slot = bucket*1000 / (span*1000) * (W-L-R);
-  drawLines("chart", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax,
-            {pts: bars, width: Math.max(1, slot > 3 ? slot - 1.5 : slot), label: "All cameras"});
+  drawLines("chart", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
   scrub.chart.head = v => (win === "7d" ? fmtDay(v) + ", " : "") + fmtTime(v);
   scrub.chart.smoothed = smoothingLabel(maMin) + " avg";
-  $("chartNote").textContent = "Grey bars are all cameras pooled, one bar " + label +
-    "; each coloured line is that camera's " + smoothingLabel(maMin) + " moving average. " +
-    "Touch and slide across the chart to compare the cameras at any time; tap a camera above for its minute-by-minute view.";
+  $("chartNote").textContent = "Each line is that camera's " + smoothingLabel(maMin) +
+    " moving average of vehicles per frame, sampled " + label +
+    ". Tap a camera name above to hide or show it, or a city to toggle the whole group. " +
+    "Touch and slide across the chart to compare the cameras at any time.";
 }
 
 const VLINES = [{line:"University Ave", color:"var(--oxford)", dash:""}, {line:"Ramp", color:"var(--oxford)", dash:"7 4"}];
@@ -435,10 +464,11 @@ function drawVideo(now){
 function drawHours(){
   const d = lastData; if (!d) return;
   const W = boxW("hours"), H = W < 500 ? 190 : 220, L = 40, R = 14, T = 12, B = 28;
-  const series = CAMS.map(c => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash, gap: 1.5,
+  const shown = CAMS.filter(c => !hidden.has(c.id));
+  const series = shown.map(c => ({name: camLabel(c), color: c.color, dash: c.dash, gap: 1.5,
     pts: ((d.cams[c.id] || {}).hourly || []).map(h => ({x: h.hr, v: Number(h.avg), n: h.n}))}));
   const all = series.flatMap(s => s.pts);
-  if (!all.length){ $("hours").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No data yet.</p>'; scrub.hours = null; return; }
+  if (!all.length){ $("hours").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">${shown.length ? "No data yet." : "No cameras selected."}</p>`; scrub.hours = null; return; }
   const ymax = niceMax(Math.max(...all.map(p => p.v)));
   const step = W < 500 ? 6 : 3;
   const hl = h => h === 0 ? "12a" : h < 12 ? h + "a" : h === 12 ? "12p" : (h-12) + "p";
@@ -449,19 +479,16 @@ function drawHours(){
 }
 
 function showAt(id, i){
-  const st = scrub[id], box = $(id), svg = box.querySelector("svg"), tip = box.querySelector(".tip");
+  // ":scope > svg" and not "svg": the tooltip is a child of this box and fills with
+  // legend swatches on the first hover, which would otherwise be matched first --
+  // showAt then threw on every later move and hideAt quietly hid nothing, freezing
+  // the guide line and dots on the chart.
+  const st = scrub[id], box = $(id), svg = box.querySelector(":scope > svg"), tip = box.querySelector(".tip");
   if (!st || !svg || !st.xs[i]) return;
   const xv = st.xs[i].v, px = st.xs[i].px;
   const gl = svg.querySelector(".guide"); gl.setAttribute("x1", px); gl.setAttribute("x2", px); gl.setAttribute("visibility", "visible");
   tip.textContent = "";
   const hd = document.createElement("strong"); hd.textContent = st.head(xv); tip.appendChild(hd);
-  if (st.bars){
-    const b = st.bars.pts.find(q => q.x === xv), row = document.createElement("div");
-    const sw = document.createElement("span"); sw.innerHTML = `<svg width="26" height="8" aria-hidden="true"><rect class="ctxbar" x="8" y="0" width="10" height="8"/></svg>`;
-    row.appendChild(sw);
-    row.append(st.bars.label + ": " + (b ? b.v.toFixed(2) + " avg over " + b.n + " frames" : "no frames"));
-    tip.appendChild(row);
-  }
   st.series.forEach((s, k) => {
     const p = s.pts.find(q => q.x === xv), mk = svg.querySelector(`.mk[data-s="${k}"]`);
     const line = document.createElement("div"); const sw = document.createElement("span"); sw.innerHTML = swatch(s.color, s.dash);
@@ -478,7 +505,7 @@ function showAt(id, i){
   tip.style.left = Math.min(Math.max(4, left - tw/2), br.width - tw - 4) + "px";
 }
 function hideAt(id){
-  const box = $(id), svg = box.querySelector("svg"), tip = box.querySelector(".tip");
+  const box = $(id), svg = box.querySelector(":scope > svg"), tip = box.querySelector(".tip");
   if (svg){ const gl = svg.querySelector(".guide"); if (gl) gl.setAttribute("visibility", "hidden");
     svg.querySelectorAll(".mk").forEach(m => m.setAttribute("visibility", "hidden")); }
   if (tip) tip.hidden = true;
@@ -486,7 +513,7 @@ function hideAt(id){
 function attachScrub(id){
   const box = $(id); let active = false;
   const pick = e => {
-    const st = scrub[id], svg = box.querySelector("svg"); if (!st || !svg || !st.xs.length) return;
+    const st = scrub[id], svg = box.querySelector(":scope > svg"); if (!st || !svg || !st.xs.length) return;
     const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * st.W / r.width;
     let best = 0, bd = Infinity; st.xs.forEach((p, i) => { const dd = Math.abs(p.px - sx); if (dd < bd){ bd = dd; best = i; } });
     showAt(id, best);
