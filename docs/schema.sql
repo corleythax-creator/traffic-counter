@@ -55,9 +55,10 @@ create table public.traffic_video_counts (
 
 create table public.camera_refs (
   camera     text primary key,              -- slug, or video:<slug> for video cameras
-  ref_jpg    text not null,                 -- base64 320x240 grayscale JPEG
+  ref_jpg    text not null,                 -- base64 320x240 grayscale JPEG, the median of several frames
+                                            -- (a single frame matches too weakly to judge a camera move)
   zone       jsonb not null,                -- [[x, y], ...] fractions
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now()  -- set on every write; drives the periodic re-base
 );
 
 -- RLS (row-level security) is enabled on all four tables with no policies:

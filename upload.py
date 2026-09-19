@@ -6,10 +6,12 @@ tiles). Only vehicles whose bottom-center falls inside the camera's counting
 zone (the near and middle stretch of road) count toward the totals. Every
 detection down to 0.10 confidence is still stored in traffic_detections.
 
-Camera moves: the first daytime frame for each camera is saved as its reference
-view (Supabase table camera_refs). Later frames are compared with it; small pans
-or zooms move the counting zone to follow, and a big change is flagged
-(view_status = changed) and counted with a general lower-frame zone.
+Camera moves: each camera's reference view (Supabase table camera_refs) is the
+median of several daylight frames, which leaves the static scene and clears the
+traffic. Later frames are compared with it; small pans or zooms move the counting
+zone to follow, and a big change is flagged (view_status = changed) and counted
+with a general lower-frame zone. A reference that keeps checking out as unmoved is
+re-based every few hours so it follows the changing light.
 
 Safe to re-run and safe while capture.py is running: it resumes after the last
 uploaded frame (cam folder/.last_upload) and overwrites instead of duplicating.
@@ -33,6 +35,9 @@ CAPTURE_MODEL = "yolo11n.pt"
 IMGSZ = 960
 FALLBACK_ZONE = [(0, 0.25), (1, 0.25), (1, 1), (0, 1)]  # used when a camera view no longer matches
 DET_FLOOR = 0.10
+REF_FRAMES = 9          # frames medianed together to build a reference view
+REF_MIN_FRAMES = 5      # below this the median cannot clear the traffic, so wait for a fuller batch
+REF_MAX_AGE_H = 6       # re-base a reference this often, but only while the view checks out as unmoved
 # Counting zones as (x, y) fractions of the image, from the top-left corner
 CAMERAS = {
     "lakeland-treetops":   {"name": "Lakeland Dr S at Treetops Blvd", "stream": "011404", "host": "streamingjxn2",
@@ -185,6 +190,32 @@ def _small_gray(path):
     return cv2.cvtColor(cv2.resize(cv2.imread(str(path)), (320, 240), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
 
 
+def _median_gray(paths):
+    """Median of several frames. Cars and headlight glare land in different places
+    from frame to frame and drop out; the static scene survives."""
+    import cv2, numpy as np
+    return np.median(np.stack([_small_gray(p) for p in paths]), 0).astype(np.uint8)
+
+
+def _ref_pool(out, chunk, want):
+    """Evenly spaced frames from this batch to build a reference from, newest light
+    included. Infrared frames are left out so a reference is never half infrared."""
+    paths = [p for p in (out / r["file"] for r in chunk) if p.exists()]
+    if len(paths) > want:
+        step = len(paths) / want
+        paths = [paths[int(k * step)] for k in range(want)]
+    return [p for p in paths if not _is_night(p)]
+
+
+def _age_hours(stamp):
+    from datetime import datetime, timezone
+    try:
+        t = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return 0.0  # unreadable timestamp: leave the reference alone rather than churn it
+    return (datetime.now(timezone.utc) - t).total_seconds() / 3600
+
+
 def _is_night(path):
     import cv2, numpy as np
     hsv = cv2.cvtColor(cv2.resize(cv2.imread(str(path)), (160, 120)), cv2.COLOR_BGR2HSV)
@@ -202,19 +233,37 @@ def _features(g):
 
 def load_ref(url, key, cam):
     import cv2, numpy as np, base64
-    rows = get_json(url, key, f"camera_refs?camera=eq.{cam}&select=ref_jpg,zone")
+    rows = get_json(url, key, f"camera_refs?camera=eq.{cam}&select=ref_jpg,zone,created_at")
     if not rows:
         return None
     g = cv2.imdecode(np.frombuffer(base64.b64decode(rows[0]["ref_jpg"]), np.uint8), cv2.IMREAD_GRAYSCALE)
-    return {"feats": _features(g), "zone": [tuple(p) for p in rows[0]["zone"]]}
+    return {"feats": _features(g), "zone": [tuple(p) for p in rows[0]["zone"]],
+            "age_h": _age_hours(rows[0]["created_at"])}
 
 
-def save_ref(url, key, cam, path, zone):
-    import cv2, base64
-    ok, buf = cv2.imencode(".jpg", _small_gray(path), [cv2.IMWRITE_JPEG_QUALITY, 75])
-    upsert(url, key, "camera_refs", [{"camera": cam, "ref_jpg": base64.b64encode(buf.tobytes()).decode(),
-                                      "zone": [list(p) for p in zone]}], "camera")
-    return {"feats": _features(_small_gray(path)), "zone": zone}
+def save_ref(url, key, cam, paths, zone):
+    """Store the median of several frames as the reference view.
+
+    A single frame was not enough to match against. On a busy night camera most of
+    its strong features are cars and headlight bloom, which are gone by the next
+    frame, so only about 20 usable matches survived and the homography check sat on
+    its own threshold: identical, unmoved views scored 14 to 16 inliers against a
+    cutoff of 15 and flipped between 'same' and 'changed' frame to frame. Medianing
+    the traffic out leaves the poles, lane markings and crosswalk, which match at 70
+    to 300 inliers, so the check clears its thresholds by a wide margin and only a
+    real pan or zoom brings it back down.
+    """
+    import cv2, numpy as np, base64
+    from datetime import datetime, timezone
+    ok, buf = cv2.imencode(".jpg", _median_gray(paths), [cv2.IMWRITE_JPEG_QUALITY, 75])
+    raw = buf.tobytes()
+    upsert(url, key, "camera_refs", [{"camera": cam, "ref_jpg": base64.b64encode(raw).decode(),
+                                      "zone": [list(p) for p in zone],
+                                      "created_at": datetime.now(timezone.utc).isoformat()}], "camera")
+    # Match on the stored picture, not the one in memory, so a reference behaves the
+    # same in the run that wrote it as in every run that loads it back.
+    g = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_GRAYSCALE)
+    return {"feats": _features(g), "zone": zone, "age_h": 0.0}
 
 
 def check_view(ref, path):
@@ -269,6 +318,10 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20, keep_images
     for i in range(0, len(rows), BATCH):
         chunk = rows[i:i + BATCH]
         frames, dets, counted = [], [], []
+        # Only decoded when a reference is missing or due to be re-based; the rest of
+        # the time reading these frames twice would be wasted work.
+        pool = (_ref_pool(out, chunk, REF_FRAMES)
+                if ref is None or ref["age_h"] >= REF_MAX_AGE_H else [])
         for r in chunk:
             ms = int(r["epoch_ms"])
             counts = {v: to_int(r.get(v)) for v in VEHICLES.values()}
@@ -281,10 +334,22 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20, keep_images
                     view, zone = "night", (ref["zone"] if ref else base_zone)
                 else:
                     if ref is None:
-                        ref = save_ref(url, key, cam, img, base_zone); view, zone = "same", base_zone
-                        print("saved reference view")
+                        if len(pool) >= REF_MIN_FRAMES:
+                            ref = save_ref(url, key, cam, pool, base_zone)
+                            view, zone = "same", base_zone
+                            print(f"saved reference view from {len(pool)} frames")
+                        else:
+                            # Too few frames to median; count with the drawn zone and
+                            # set the reference on a fuller batch rather than from one frame.
+                            view, zone = None, base_zone
                     elif view in (None, "night") or since_check >= check_every:
                         view, zone = check_view(ref, img); since_check = 0
+                        # Re-base the reference on current light, but only once the view
+                        # has just checked out as unmoved, so a camera that really has
+                        # been re-aimed can never quietly become its own reference.
+                        if view == "same" and ref["age_h"] >= REF_MAX_AGE_H and len(pool) >= REF_MIN_FRAMES:
+                            ref = save_ref(url, key, cam, pool, ref["zone"])
+                            print(f"refreshed reference view from {len(pool)} frames")
                     since_check += 1
                 found, brightness = detect(model, img, tiles)
                 counts = {v: 0 for v in VEHICLES.values()}; people = 0

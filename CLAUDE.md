@@ -78,14 +78,16 @@ Model choices were tested on real frames: medium@960 beat nano, small, and large
 
 ## Camera-move detection
 
-MDOT operators pan and zoom cameras. On a camera's first daytime frame, `upload.py` saves a 320x240 grayscale reference image and the zone to `camera_refs` (video cameras use key `video:<slug>`). Every 20 frames it matches SIFT (scale-invariant feature transform) features against the reference with a RANSAC (random sample consensus) homography:
+MDOT operators pan and zoom cameras. `upload.py` saves a 320x240 grayscale reference image and the zone to `camera_refs` (video cameras use key `video:<slug>`). The reference is the **median of `REF_FRAMES` (9) daylight frames**, not a single frame: traffic and headlight glare sit in different places from frame to frame and drop out of the median, leaving the poles, lane markings and crosswalk that the matcher actually needs. Every 20 frames it matches SIFT (scale-invariant feature transform) features against the reference with a RANSAC (random sample consensus) homography:
 
 - `same`: counts with the stored zone.
 - `shifted`: small pan/zoom; the zone is warped to follow.
 - `changed`: no reliable match; counts with `FALLBACK_ZONE` (lower 75% of the frame). Video cameras skip counting and write rows with `vehicles = null`.
 - `night`: infrared (near-zero color saturation) frames skip the check and use the stored zone.
 
-The zone in `camera_refs` is what both collectors use. To redraw a zone for a re-aimed camera, update `camera_refs` (new ref image + zone) and also update the base zone in `upload.py`/`cameras.json` so any future reference saves use it. Deleting a `camera_refs` row makes the next daytime frame become the new reference with the code's base zone.
+A reference older than `REF_MAX_AGE_H` (6 h) is re-based on a fresh median, but only on a check that just returned `same`, so it follows the changing light while a genuinely re-aimed camera can never quietly become its own reference. A batch with fewer than `REF_MIN_FRAMES` (5) usable frames is skipped rather than medianed, so a reference is never built from one or two frames.
+
+The zone in `camera_refs` is what both collectors use. To redraw a zone for a re-aimed camera, update `camera_refs` (new ref image + zone) and also update the base zone in `upload.py`/`cameras.json` so any future reference saves use it. Deleting a `camera_refs` row makes the next full daylight batch the new reference with the code's base zone.
 
 ## Database
 
@@ -139,7 +141,7 @@ Preview the dashboard: serve `dashboard/` and mock `/api/*`, or render with Play
 - MDOT cameras marked PTZ (pan-tilt-zoom) get re-aimed often; watch `view_status`.
 - Known accuracy limits: dense queues are undercounted (cars merge or are hidden; far queue is outside zones); people counts are a rough index only.
 - Night is not "rougher", it is close to blind on the cameras that switch to infrared. Measured Sep 18: `lakeland-n-airport` went from 16.6 detections/frame in colour to 0.34 in infrared (98% loss), `lakeland-treetops` 10.4 to 2.6 (75%). The Oxford cameras never switched to infrared that night and held steady, so Jackson-vs-Oxford after dark is not a like-for-like comparison. `DET_FLOOR` is already 0.10 and there is nothing there to find, so lowering the confidence threshold does not recover it; only a model that handles infrared, or a motion-based counter like `video.py`, would. `view_status = 'night'` marks these frames and the dashboard fades them.
-- `view_status = 'changed'` means the frame was counted with `FALLBACK_ZONE` (lower 75%), which is looser than a drawn zone and reads high: on Sep 18 the drawn zones kept 60-87% of detections where the fallback kept 81-99%. A camera sitting on `changed` for hours is usually a stale reference; refresh it by deleting its `camera_refs` row (the zone is regenerated from the code, so nothing hand-tuned is lost as long as the stored zone still matches the base zone).
+- `view_status = 'changed'` means the frame was counted with `FALLBACK_ZONE` (lower 75%), which is looser than a drawn zone and reads high: on Sep 18 the drawn zones kept 60-87% of detections where the fallback kept 81-99%. Before checking anything else, confirm the camera has actually moved by eye: single-frame references made this status mostly false. Measured Sep 19 on unmoved views, single-frame reference vs median-of-9: `jackson-e-fraternity` 10-15 inliers against a cutoff of 15 (passing 4 of 10 frames) became 71-147 (10 of 10), and every other camera improved 2-5x. Over the preceding 6 hours that flapping had put `jackson-e-fraternity` on the fallback zone for 83% of frames and the other three non-infrared cameras for 29% each, with no camera having moved. References now re-base themselves every 6 hours, so a genuine `changed` should be rare; deleting the `camera_refs` row still forces a rebuild from the code's base zone.
 - Earlier Claude-hosted dashboards (claude.ai artifacts) read Supabase through the owner's connector; the Vercel dashboard is the maintained one.
 
 ## Style for user-facing text

@@ -123,6 +123,25 @@ def count_crossings(cam, seconds):
     return counts, analysed
 
 
+FULL_ZONE = [(0, 0), (1, 0), (1, 1), (0, 1)]  # video cameras count by line, not by zone
+
+
+def ref_snaps(cam, tmp, gap=2.0):
+    """Several spaced snapshots, so the reference view can be medianed free of traffic.
+    Only taken when a reference is being set or re-based, which is rare."""
+    paths = []
+    for i in range(upload.REF_FRAMES):
+        if i:
+            time.sleep(gap)
+        path = tmp / f"ref{i}.jpg"
+        try:
+            snapshot(cam, path)
+        except Exception as e:
+            print(f"reference snapshot {i} failed: {e}"); continue
+        paths.append(path)
+    return paths
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--camera", required=True)
@@ -146,9 +165,21 @@ def main():
                 ref_key = f"video:{a.camera}"
                 ref = upload.load_ref(url, key, ref_key)
                 if ref is None:
-                    upload.save_ref(url, key, ref_key, snap, [(0, 0), (1, 0), (1, 1), (0, 1)]); view = "same"
+                    snaps = ref_snaps(cam, Path(tmp))
+                    if len(snaps) >= upload.REF_MIN_FRAMES:
+                        upload.save_ref(url, key, ref_key, snaps, FULL_ZONE); view = "same"
+                    else:
+                        print("not enough snapshots to set a reference view; counting anyway")
                 else:
                     view, _ = upload.check_view(ref, snap)
+                    # Re-base on current light while the view is confirmed unmoved. A
+                    # reference left to go stale is what put this camera on 'changed'
+                    # for an afternoon, skipping every run.
+                    if view == "same" and ref["age_h"] >= upload.REF_MAX_AGE_H:
+                        snaps = ref_snaps(cam, Path(tmp))
+                        if len(snaps) >= upload.REF_MIN_FRAMES:
+                            upload.save_ref(url, key, ref_key, snaps, ref["zone"])
+                            print("refreshed reference view")
         except Exception as e:
             print(f"view check skipped: {e}")
 
