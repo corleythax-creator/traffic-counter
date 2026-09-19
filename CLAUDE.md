@@ -32,6 +32,7 @@ upload.py         Count + upload frames; holds CAMERAS, zones, thresholds, camer
 video.py          Line-crossing counter for live video cameras
 sample.py         One GitHub Actions run: parallel captures, then counts; skips cameras covered locally
 run_local.py      Continuous all-camera runner for a PC (captures, 2-min upload loop, video loop)
+run_local.bat     Windows launcher: git pull, then run_local.py, and hold the window open
 cameras.json      Extra/overriding cameras, "sample" list for GitHub, "video" cameras and lines
 requirements.txt  ultralytics, numpy, pillow (workflow installs CPU torch + opencv-python-headless)
 .github/workflows/sample.yml   Cron */15, 14-min timeout, secrets SUPABASE_URL / SUPABASE_KEY
@@ -118,7 +119,9 @@ Run everything on a PC:
 python -m pip install ultralytics tzdata
 python run_local.py
 ```
-Windows notes: install `tzdata` (zoneinfo needs it), keep the folder out of OneDrive, quote paths with spaces, set sleep to Never.
+On Windows, double-click `run_local.bat` instead: it pulls the latest code first, then starts the collector, and keeps the window open so a crash is readable. Ctrl+C stops it.
+
+Windows notes: install `tzdata` (zoneinfo needs it), keep the folder out of OneDrive, quote paths with spaces, set sleep to Never. The desktop copy must be a `git clone`, not an extracted ZIP, or it cannot update itself.
 
 Add a snapshot camera:
 1. Fetch a 640x480 frame, draw a zone (fractions), test counts on a few frames and visually check boxes.
