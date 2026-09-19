@@ -10,21 +10,20 @@
 <link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#E9EBE6; --panel:#F7F8F5; --ink:#1F2427; --muted:#5F676C; --rule:#CDD1CB;
-  --sign:#0E6B45; --sign-ink:#FFFFFF; --warn:#9A3B12;
-  --c1:#0E6B45; --c2:#C47F00; --c3:#2F5F98; --c4:#7A3E9D; --c5:#0F7C8C; --c6:#B5452F;
-  --jackson:#2F5F98; --oxford:#B5452F; --nola:#6B3FA0; --jackson-sign:#1F4E8C; --oxford-sign:#9C3A26;
+  --bg:#E9EBE6; --panel:#F7F8F5; --hover:#EDEFEA; --ink:#1F2427; --muted:#5F676C; --rule:#CDD1CB;
+  --warn:#9A3B12; --c2:#C47F00;
+  --jackson:#2F5F98; --oxford:#B5452F; --nola:#6B3FA0;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
-    --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
+    --bg:#16191B; --panel:#1F2326; --hover:#272C30; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
+    --warn:#F08A5D; --c2:#F0B429; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
-  --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
+  --bg:#16191B; --panel:#1F2326; --hover:#272C30; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
+  --warn:#F08A5D; --c2:#F0B429; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -36,47 +35,55 @@ h2{font-size:1.15rem;font-weight:800;margin:0}
 p{margin:0}
 .lede{color:var(--muted);font-size:.95rem;margin-bottom:16px}
 
-.signs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-@media (max-width:640px){ .signs{grid-template-columns:1fr} }
-.grp{display:flex;align-items:center;gap:10px;margin:18px 0 8px;font-size:1.05rem;font-weight:800}
-.grp:first-child{margin-top:0}
-.grp i{width:28px;height:6px;border-radius:3px;background:var(--gc)}
-.key .kg{font-weight:800;color:var(--ink)}
-.key svg{vertical-align:middle;margin-right:6px}
-.sign{background:var(--gs, var(--sign));color:var(--sign-ink);border-radius:10px;padding:4px}
-a.sign{display:block;text-decoration:none;transition:transform .12s ease, box-shadow .12s ease}
-a.sign:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.18)}
-a.sign:focus-visible{outline:3px solid var(--c2);outline-offset:3px}
-.thumb{grid-area:thumb;display:block;width:112px;aspect-ratio:352/240;height:auto;object-fit:cover;border-radius:3px;background:rgba(255,255,255,.12)}
-.sign-inner{border:2px solid var(--sign-ink);border-radius:7px;padding:8px 10px;height:100%;
-  display:grid;grid-template-columns:112px 1fr auto;grid-template-areas:"thumb legend now" "avgs avgs avgs" "spark spark spark" "meta meta meta";
-  gap:6px 10px;align-items:center;position:relative}
-.avgs{grid-area:avgs;display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid rgba(255,255,255,.35);padding-top:6px;text-align:center}
-.avgs div + div{border-left:1px solid rgba(255,255,255,.35)}
-.avgs b{display:block;font-size:1.15rem;font-weight:800;line-height:1.1}
-.avgs span{font-size:.72rem;opacity:.9}
-.spark{grid-area:spark;border-top:1px solid rgba(255,255,255,.35);padding-top:8px}
-.spark .plot{position:relative;display:flex;align-items:flex-end;gap:2px;height:48px}
-.spark .col{flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%;
-  border-bottom:1px solid rgba(255,255,255,.55)}
-.spark .col.off{border-bottom-color:rgba(255,255,255,.14)}
-.spark .col i{display:block;width:100%;max-width:14px;min-height:2px;border-radius:3px 3px 0 0;
-  background:rgba(255,255,255,.58)}
-.spark .col i.hi{background:rgba(255,255,255,.96)}
-.spark .ref{position:absolute;left:0;right:0;border-top:1px dashed rgba(255,255,255,.6);pointer-events:none}
-.spark .sl{display:flex;justify-content:space-between;gap:10px;font-size:.7rem;margin-top:4px}
-.spark .sl .read{font-weight:600}
-.spark .sl .ax{opacity:.72;white-space:nowrap}
-.chip{position:absolute;top:10px;right:12px;width:28px;height:6px;border-radius:3px;background:var(--chip)}
-.legend{grid-area:legend;font-weight:800;font-size:1.05rem;line-height:1.1;align-self:start}
-.legend span{display:block;font-weight:600;font-size:.8em;opacity:.9;margin-top:2px}
-.now{grid-area:now;text-align:right;align-self:start}
-.now .n{font-weight:800;font-size:2.4rem;line-height:.9}
-.now .l{font-size:.72rem;opacity:.92}
-.meta{grid-area:meta;font-size:.74rem;opacity:.92;display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center}
-.meta .st{display:flex;gap:5px;align-items:center}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--sign-ink);flex:none}
-.dot.stale{background:#F0B429}
+/* One row per camera: thumbnail, name, the numbers, and a 15-minute sparkline.
+   Column labels live in a single header strip rather than on every row, which is
+   what lets a row stay one line tall. Clicking a row opens its live video. */
+.city{display:flex;align-items:center;gap:8px;margin:18px 0 6px;font-size:.72rem;font-weight:800;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.city:first-child{margin-top:0}
+.city i{width:16px;height:3px;border-radius:2px;background:var(--gc);flex:none}
+.cams{border:1px solid var(--rule);border-radius:10px;background:var(--panel);overflow:hidden}
+.grid{display:grid;align-items:center;gap:0 12px;padding:7px 12px;
+  grid-template-columns:64px minmax(0,1fr) 54px 46px 46px 46px 112px 12px}
+.hdr{font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+  border-bottom:1px solid var(--rule);padding-top:9px;padding-bottom:7px;white-space:nowrap}
+.hdr .r{text-align:right}
+.row + .row{border-top:1px solid var(--rule)}
+.rowbtn{font:inherit;color:inherit;background:none;border:0;width:100%;text-align:left;cursor:pointer}
+.rowbtn:hover{background:var(--hover)}
+.rowbtn:focus-visible{outline:3px solid var(--c2);outline-offset:-3px}
+.th{width:64px;aspect-ratio:4/3;object-fit:cover;border-radius:4px;background:var(--rule);display:block}
+.nm{min-width:0}
+.nm b{display:block;font-weight:700;font-size:.92rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm i{display:block;font-style:normal;font-size:.76rem;color:var(--muted);line-height:1.25;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.num{text-align:right}
+.num b{display:block;font-weight:800;font-size:1.3rem;line-height:1.05}
+.num i{display:block;font-style:normal;font-size:.64rem;color:var(--muted);line-height:1.35}
+.num.s b{font-size:.98rem;font-weight:600}
+.num.s.none b{color:var(--muted);font-weight:400}
+.spk{width:112px;height:26px;display:block}
+.chev{width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+  transform:rotate(45deg) translate(-2px,-2px);justify-self:end}
+.rowbtn[aria-expanded="true"] .chev{transform:rotate(-135deg) translate(-2px,-2px)}
+/* Rare states, so a word is clearer than a colour the reader has to learn. */
+.tag{display:inline-block;font-size:.6rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+  padding:0 4px;border:1px solid var(--rule);border-radius:4px;color:var(--muted);margin-left:5px;
+  white-space:nowrap;vertical-align:1px}
+.tag.warn{color:var(--warn);border-color:var(--warn)}
+.panel{padding:2px 12px 14px;background:var(--bg);border-top:1px solid var(--rule)}
+.panel[hidden]{display:none}
+.pmeta{font-size:.8rem;color:var(--muted);margin-top:8px;display:flex;flex-wrap:wrap;gap:2px 14px;align-items:baseline}
+.pmeta a{color:var(--ink);font-weight:600}
+@media (max-width:820px){
+  .grid{grid-template-columns:64px minmax(0,1fr) 54px 112px 12px}
+  .grid .h1{display:none}
+}
+@media (max-width:520px){
+  .grid{grid-template-columns:52px minmax(0,1fr) 48px 76px 10px;gap:0 9px;padding:7px 9px}
+  .th{width:52px}
+  .spk{width:76px}
+}
 
 section{margin-top:28px}
 .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
@@ -85,7 +92,7 @@ section{margin-top:28px}
 .seg button + button{border-left:1px solid var(--rule)}
 /* five windows still fit one row on a phone with tighter padding */
 @media (max-width:520px){ .seg button{padding:6px 8px;font-size:.85rem} }
-.seg button[aria-pressed="true"]{background:var(--sign);color:var(--sign-ink);font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);font-weight:600}
 button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
 .key{display:flex;gap:16px;flex-wrap:wrap;font-size:.88rem;color:var(--muted);margin-bottom:8px}
 .key i{display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
@@ -107,7 +114,7 @@ button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
 .tip svg{width:26px;height:8px;display:inline-block;vertical-align:middle;margin-right:6px}
 .tip[hidden]{display:none}
 .note{font-size:.88rem;color:var(--muted);margin-top:8px;max-width:75ch}
-.live{position:relative;margin-bottom:10px}
+.live{position:relative;margin-top:10px;max-width:760px}
 .live video{display:block;width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;border:1px solid var(--rule)}
 .liveplay{display:block;width:100%;aspect-ratio:16/9;position:relative;padding:0;overflow:hidden;
   border:1px solid var(--rule);border-radius:10px;background:#12151A;cursor:pointer}
@@ -135,7 +142,7 @@ footer p + p{margin-top:8px}
   <h1>Traffic cameras</h1>
   <p class="lede" id="lede">Loading the latest counts…</p>
 
-  <div id="signs"></div>
+  <div id="cams"></div>
   <div class="msg" id="msg" hidden role="status"><strong id="msgTitle"></strong><span id="msgBody"></span></div>
 
   <section>
@@ -151,10 +158,8 @@ footer p + p{margin-top:8px}
     </div>
     <div class="key" id="key1"></div>
     <div class="chart" id="chart"></div>
-    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time; tap a camera above for its minute-by-minute view. Camera pictures refresh with the counts.</p>
+    <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time.</p>
   </section>
-
-  <div id="videos"></div>
 
   <section>
     <div class="head"><h2>Typical hour of the day</h2></div>
@@ -164,7 +169,7 @@ footer p + p{margin-top:8px}
   </section>
 
   <footer>
-    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. After dark the Jackson cameras switch to infrared and the model detects far less than is really on the road - those stretches are faded on the charts and marked on the card. The bars on each camera show the last 15 minutes one minute at a time, with the past hour's average drawn through them as a dashed line; a blank slot is a minute with no frames, not a minute with no traffic.</p>
+    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. After dark the Jackson cameras switch to infrared and the model detects far less than is really on the road - those stretches are faded on the charts and marked on the card. The sparkline on each row is the last 15 minutes a minute at a time, with the past hour's average drawn through it as a dashed line, so a camera running above its own recent hour reads at a glance; the line breaks at minutes with no frames rather than drawing through them, because an unsampled minute is not a quiet one. Open a row for its live video.</p>
     <p id="methodNote"></p>
     <p>Source: MDOT (Mississippi Department of Transportation) traffic cameras at mdottraffic.com.</p>
     <p style="margin-top:10px"><button class="refresh" id="refreshBtn">Refresh now</button></p>
@@ -174,17 +179,27 @@ footer p + p{margin-top:8px}
 <script>
 const TZ = "America/Chicago";
 // Cameras are grouped by city: one color per group, a different line style per camera
-const GROUPS = [{name:"Jackson", color:"var(--jackson)", sign:"var(--jackson-sign)"}, {name:"Oxford", color:"var(--oxford)", sign:"var(--oxford-sign)"}];
+const GROUPS = [{name:"Jackson", color:"var(--jackson)"}, {name:"Oxford", color:"var(--oxford)"},
+                {name:"New Orleans", color:"var(--nola)"}];
 const DASHES = ["", "7 4", "2 4", "10 4 2 4"];
+// Snapshot cameras and live-video cameras share one list, because on the page they
+// are one list of rows. `video` marks the ones counted by line crossings instead of
+// vehicles in view: a different measure, so those rows are labelled per hour.
 const CAMS = [
-  {id:"lakeland-treetops",    a:"Lakeland Dr S", b:"at Treetops Blvd", group:"Jackson"},
-  {id:"lakeland-n-airport",   a:"Lakeland Dr N", b:"at Airport Rd",    group:"Jackson"},
-  {id:"jackson-e-fraternity", a:"Jackson E",     b:"at Frtrnty",       group:"Oxford"},
-  {id:"jackson-w-fraternity", a:"Jackson W",     b:"at Frtrnty",       group:"Oxford"},
-  {id:"university-w-lamar",   a:"University W",  b:"at Lamar",         group:"Oxford"},
-  {id:"lamar-n-university",   a:"Lamar Blvd N",  b:"at University Ave", group:"Oxford"}
+  {id:"lakeland-treetops",    a:"Lakeland Dr S",   b:"at Treetops Blvd",  group:"Jackson"},
+  {id:"lakeland-n-airport",   a:"Lakeland Dr N",   b:"at Airport Rd",     group:"Jackson"},
+  {id:"jackson-e-fraternity", a:"Jackson E",       b:"at Frtrnty",        group:"Oxford"},
+  {id:"jackson-w-fraternity", a:"Jackson W",       b:"at Frtrnty",        group:"Oxford"},
+  {id:"university-w-lamar",   a:"University W",    b:"at Lamar",          group:"Oxford"},
+  {id:"lamar-n-university",   a:"Lamar Blvd N",    b:"at University Ave", group:"Oxford"},
+  {id:"university-e-ms7",     a:"University Ave E", b:"at MS 7",          group:"Oxford",
+   video:{lines:["University Ave", "Ramp"]}},
+  {id:"i10-orleans",          a:"I-10",            b:"at Orleans Ave",    group:"New Orleans",
+   video:{lines:["I-10"], note:"Louisiana DOTD (Department of Transportation and Development) public camera on the elevated interstate near the French Quarter; both directions combined."}}
 ];
-GROUPS.forEach(g => CAMS.filter(c => c.group === g.name).forEach((c, k) => { c.color = g.color; c.sign = g.sign; c.dash = DASHES[k % DASHES.length]; }));
+const SNAPS = CAMS.filter(c => !c.video);   // the cameras the two charts below plot
+GROUPS.forEach(g => CAMS.filter(c => c.group === g.name).forEach((c, k) => {
+  c.color = g.color; c.dash = DASHES[k % DASHES.length]; }));
 const swatch = (color, dash) => `<svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="${color}" stroke-width="3" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/></svg>`;
 const WINDOWS = {
   "1h":  {interval:"1 hour",  bucket:60,   span:3600,   label:"per minute"},
@@ -205,17 +220,14 @@ function ago(ms){ const m = Math.round(ms/60000); if (m < 1) return "just now"; 
 // Snapshot thumbnails refresh in 15-second slots so viewers share cached images
 const snapSlot = () => Math.floor(Date.now() / 15000);
 
-// One bar per minute for the last 15 minutes, with the past hour's average drawn
-// through them as a dashed reference. The three averages above the chart say how
-// busy it is; the chart's job is the part they can't show -- whether the last
-// quarter hour is building or easing against the hour behind it, and whether that
-// came from a steady climb or one spike. Bars above the hour line are bright, bars
-// below are dim, so the split reads without needing the line traced by eye. With no
-// hour to compare against yet there is no split, so every bar stays bright.
-// Each minute keeps a baseline segment: bright when the minute was sampled, dim
-// when it was not, and a sampled minute with no vehicles still shows a 2px nub --
-// a quiet minute must never look like an unsampled one, because the GitHub
-// collector only covers about 4 minutes in every 15.
+// A 15-minute sparkline per row, with the past hour's average as a dashed
+// reference through it. The three averages beside it say how busy the camera is;
+// the sparkline's job is the part a number cannot show -- whether the last quarter
+// hour is building or easing against the hour behind it, and whether that came
+// from a steady climb or one spike. Above the dashed line is running hot.
+// The line breaks at minutes with no frames rather than drawing through them: the
+// GitHub collector only covers about 4 minutes in every 15, and an unsampled
+// minute must never read as a quiet one.
 const SPARK_MIN = 15;
 
 function readTrend(avg15, avg60){
@@ -230,54 +242,111 @@ function readTrend(avg15, avg60){
   return dir + ", " + Math.round(Math.abs(rel) * 100) + "% " + side + " the past hour";
 }
 
-function sparkHtml(rows, now, avg15, avg60){
-  const end = Math.floor(now / 60000), start = end - (SPARK_MIN - 1);
-  const by = new Map();
-  (rows || []).forEach(r => { const m = Math.floor(new Date(r.t).getTime() / 60000);
-    if (m >= start && m <= end) by.set(m, r); });
-  const vals = [...by.values()].map(r => Number(r.avg)).filter(v => !isNaN(v));
-  const ref = avg60 == null ? null : Number(avg60);
-  // the hour line has to stay on the chart even when the last 15 minutes sit well under it
-  const top = Math.max(vals.length ? Math.max(...vals) : 0, ref || 0);
-  const scale = top > 0 ? top * 1.08 : 1;
-
-  let cols = "";
-  for (let m = start; m <= end; m++){
-    const r = by.get(m), at = fmtTime(m * 60000);
-    if (!r){ cols += `<div class="col off" title="${esc(at + ": no frames")}"></div>`; continue; }
-    const v = Number(r.avg), pct = Math.max(0, Math.min(100, (v / scale) * 100));
-    const tip = at + ": " + v.toFixed(1) + " avg, peak " + r.peak +
-                " (" + r.n + (r.n === 1 ? " frame)" : " frames)");
-    cols += `<div class="col" title="${esc(tip)}">` +
-            `<i class="${ref == null || v > ref ? "hi" : ""}" style="height:${pct.toFixed(1)}%"></i></div>`;
-  }
-  const line = ref != null && top > 0
-    ? `<div class="ref" style="bottom:${Math.min(98, (ref / scale) * 100).toFixed(1)}%" ` +
-      `title="${esc("Past hour average: " + Number(avg60).toFixed(1))}"></div>` : "";
-  const read = vals.length ? readTrend(avg15, avg60) : "No frames in the last 15 minutes";
-  return `<div class="plot">${line}${cols}</div>` +
-         `<div class="sl"><span class="read">${esc(read)}</span><span class="ax">last 15 min</span></div>`;
+// vals is one slot per period, null where nothing was sampled, so gaps stay gaps.
+function sparkSvg(vals, ref, color, title){
+  const W = 112, H = 26, pad = 3;
+  const seen = vals.filter(v => v != null);
+  const head = `<svg class="spk" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}"><title>${esc(title)}</title>`;
+  if (!seen.length) return head + `<line x1="${pad}" x2="${W-pad}" y1="${H-pad}" y2="${H-pad}" stroke="var(--rule)" stroke-width="1"/></svg>`;
+  const top = Math.max(Math.max(...seen), ref || 0) * 1.12 || 1;
+  const x = i => pad + i * (W - 2*pad) / Math.max(1, vals.length - 1);
+  const y = v => H - pad - (v / top) * (H - 2*pad);
+  let d = "", open = false;
+  vals.forEach((v, i) => {
+    if (v == null){ open = false; return; }
+    d += (open ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1); open = true;
+  });
+  // a single sampled slot has no line to draw, so give it a dot to sit on
+  const lone = seen.length === 1;
+  const li = vals.length - 1 - [...vals].reverse().findIndex(v => v != null);
+  const refLine = ref != null && ref > 0
+    ? `<line x1="${pad}" x2="${W-pad}" y1="${y(ref).toFixed(1)}" y2="${y(ref).toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3" opacity=".7"/>` : "";
+  const line = lone ? "" : `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  return head + refLine + line +
+    `<circle cx="${x(li).toFixed(1)}" cy="${y(vals[li]).toFixed(1)}" r="2.4" fill="${color}"/></svg>`;
 }
 
-// Sign cards, grouped by city
-const signHtml = (c, i) => `
-  <a class="sign" style="--gs:${c.sign}" href="/camera.html?cam=${encodeURIComponent(c.id)}" aria-label="${esc(c.a + ' ' + c.b)}: minute-by-minute detail">
-    <div class="sign-inner" style="--chip:${c.color}">
-      <img class="thumb" id="t${i}" src="/api/snapshot?cam=${encodeURIComponent(c.id)}&t=${snapSlot()}" alt="Latest snapshot from ${esc(c.a + ' ' + c.b)}" loading="lazy" decoding="async">
-      <div class="legend">${esc(c.a)}<span>${esc(c.b)}</span></div>
-      <div class="now"><div class="n" id="n${i}">–</div><div class="l">in view now</div></div>
-      <div class="avgs"><div><b id="v5_${i}">–</b><span>5-min avg</span></div><div><b id="v15_${i}">–</b><span>15-min avg</span></div><div><b id="v60_${i}">–</b><span>1-hr avg</span></div></div>
-      <div class="spark" id="sp${i}"></div>
-      <div class="meta">
-        <div class="st"><span class="dot" id="d${i}"></span><span id="s${i}">Loading…</span></div>
-        <span id="p${i}"></span><span id="h${i}"></span>
+// Last 15 one-minute buckets for a snapshot camera, aligned to the clock so every
+// row's sparkline covers the same minutes.
+function snapSpark(x, now, c){
+  const end = Math.floor(now / 60000), start = end - (SPARK_MIN - 1);
+  const by = new Map();
+  (x.last15 || []).forEach(r => { const m = Math.floor(new Date(r.t).getTime() / 60000);
+    if (m >= start && m <= end) by.set(m, r); });
+  const vals = [];
+  for (let m = start; m <= end; m++){ const r = by.get(m); vals.push(r ? Number(r.avg) : null); }
+  const ref = x.avg_60 == null ? null : Number(x.avg_60);
+  const title = camLabel(c) + ", last 15 minutes: " + readTrend(x.avg_15, x.avg_60).toLowerCase() +
+    (ref != null ? " (dashed line = past hour, " + ref.toFixed(1) + ")" : "");
+  return sparkSvg(vals, ref, c.color, title);
+}
+
+// Video cameras run in windows a few minutes apart, so 15 minutes would be two or
+// three points. These use the last 8 counting windows instead.
+function videoSpark(d, c){
+  const by = new Map();
+  (d.video || []).filter(r => r.camera === c.id).forEach(r => {
+    const t = new Date(r.t).getTime();
+    by.set(t, (by.get(t) || 0) + Math.round(r.veh / r.secs * 3600));
+  });
+  const ts = [...by.keys()].sort((a, b) => a - b).slice(-8);
+  const vals = ts.map(t => by.get(t));
+  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  const title = ts.length
+    ? camLabel(c) + ", last " + ts.length + " counting window" + (ts.length === 1 ? "" : "s") +
+      " to " + fmtTime(ts[ts.length-1]) + " (dashed line = their average, " + Math.round(avg) + "/hr)"
+    : camLabel(c) + ": no counting windows yet";
+  return sparkSvg(vals, avg, c.color, title);
+}
+
+// One row per camera. The header strip carries the column labels so a row does not
+// have to; that is most of what makes the list short.
+const rowHtml = (c, i) => `
+  <div class="row">
+    <button class="rowbtn grid" type="button" id="rb${i}" aria-expanded="false" aria-controls="pn${i}">
+      <img class="th" id="th${i}" src="" alt="" aria-hidden="true" loading="lazy" decoding="async">
+      <span class="nm"><b>${esc(c.a)}<span id="tg${i}"></span></b><i>${esc(c.b)}</i></span>
+      <span class="num"><b id="n${i}">–</b>${c.video ? "<i>per hour</i>" : ""}</span>
+      <span class="num s h1"><b id="v5_${i}">–</b></span>
+      <span class="num s h1"><b id="v15_${i}">–</b></span>
+      <span class="num s h1"><b id="v60_${i}">–</b></span>
+      <span id="sp${i}"></span>
+      <span class="chev" aria-hidden="true"></span>
+    </button>
+    <div class="panel" id="pn${i}" hidden>
+      <div class="live">
+        <video id="lvid${i}" playsinline muted controls preload="none" hidden
+               aria-label="Live video from ${esc(camLabel(c))}"></video>
+        <button class="liveplay" id="lplay${i}" type="button" aria-label="Play the live video from ${esc(camLabel(c))}">
+          <img id="lposter${i}" alt="" aria-hidden="true" decoding="async" onerror="this.style.display='none'">
+          <span class="liveui"><span class="playdot" aria-hidden="true"></span><span id="llabel${i}">Play live video</span></span>
+        </button>
+        <p class="note livemsg" id="lmsg${i}" hidden role="status"></p>
       </div>
+      <p class="pmeta"><span id="s${i}">Loading…</span><span id="p${i}"></span><span id="h${i}"></span>
+        <a href="/camera.html?cam=${encodeURIComponent(c.id)}">Minute-by-minute detail</a></p>
+      ${c.video ? `<div class="key" id="vkey${i}"></div><div class="chart" id="vchart${i}"></div>
+      <p class="note">Vehicles per hour crossing a counting line on each road, from live video. Unlike the snapshot cameras this counts vehicles passing, not vehicles in view.${c.video.note ? " " + esc(c.video.note) : ""}</p>` : ""}
     </div>
-  </a>`;
-$("signs").innerHTML = GROUPS.map(g => `<h2 class="grp" style="--gc:${g.sign}"><i aria-hidden="true"></i>${esc(g.name)}</h2>
-  <div class="signs">${CAMS.map((c, i) => c.group === g.name ? signHtml(c, i) : "").join("")}</div>`).join("");
-// Which cameras are switched off in the charts. The sign cards always show every
-// camera; this only filters the plots. Kept per browser so a choice survives a
+  </div>`;
+
+const camLabel = c => c.a + " " + c.b.replace(/^at /, "@ ");
+$("cams").innerHTML = GROUPS.map(g => {
+  const cams = CAMS.map((c, i) => [c, i]).filter(([c]) => c.group === g.name);
+  if (!cams.length) return "";
+  return `<h2 class="city" style="--gc:${g.color}"><i aria-hidden="true"></i>${esc(g.name)}</h2>
+  <div class="cams">
+    <div class="grid hdr" aria-hidden="true"><span></span><span>Camera</span><span class="r">Now</span>
+      <span class="r h1">5 min</span><span class="r h1">15 min</span><span class="r h1">1 hr</span>
+      <span class="r">Recent</span><span></span></div>
+    ${cams.map(([c, i]) => rowHtml(c, i)).join("")}
+  </div>`;
+}).join("");
+
+// Which cameras are switched off in the two charts below. The rows always show
+// every camera; this only filters the plots, and only the snapshot cameras appear
+// there -- a video camera counts vehicles passing, which is a different measure
+// and belongs on its own chart inside its row. Kept per browser so a choice survives a
 // reload, and tolerant of storage being unavailable (private windows, blocked
 // site data) because the page must still work without it.
 const hidden = new Set();
@@ -285,10 +354,10 @@ try { (JSON.parse(localStorage.getItem("hiddenCams") || "[]") || []).forEach(id 
   if (CAMS.some(c => c.id === id)) hidden.add(id); }); } catch (_) {}
 function saveHidden(){ try { localStorage.setItem("hiddenCams", JSON.stringify([...hidden])); } catch (_) {} }
 
-const camLabel = c => c.a + " " + c.b.replace(/^at /, "@ ");
 function keyHtml(){
   return GROUPS.map(g => {
-    const cams = CAMS.filter(c => c.group === g.name);
+    const cams = SNAPS.filter(c => c.group === g.name);
+    if (!cams.length) return "";
     const on = cams.some(c => !hidden.has(c.id));
     return `<button type="button" class="kg" data-group="${esc(g.name)}" aria-pressed="${on}" ` +
              `title="${esc((on ? "Hide" : "Show") + " all " + g.name + " cameras")}">${esc(g.name)}</button>` +
@@ -311,7 +380,7 @@ function onKeyClick(e){
     saveHidden(); redraw(); return; }
   const gb = e.target.closest("button[data-group]");
   if (!gb) return;
-  const cams = CAMS.filter(c => c.group === gb.dataset.group);
+  const cams = SNAPS.filter(c => c.group === gb.dataset.group);
   // a group button turns its whole city off, or back on when any of it is already off
   const on = cams.some(c => !hidden.has(c.id));
   cams.forEach(c => on ? hidden.add(c.id) : hidden.delete(c.id));
@@ -347,30 +416,49 @@ function render(d){
   const now = new Date(d.now).getTime(), cams = d.cams || {};
   $("lede").textContent = "Updated " + fmtTime(now) + ". Refreshes every 2 minutes while open.";
   let oldModel = false;
+  const fmtAvg = v => v == null ? "–" : Number(v).toFixed(1);
   CAMS.forEach((c, i) => {
     const x = cams[c.id] || {};
-    if (x.latest){
-      const age = now - new Date(x.latest.at).getTime(), stale = age > 75*60000;
-      $("n"+i).textContent = x.latest.total ?? "–";
-      $("d"+i).classList.toggle("stale", stale);
-      $("s"+i).textContent = fmtTime(x.latest.at) + (stale ? ", no new data for over an hour" : "")
-        + (x.latest.view === "night" ? ", infrared - undercounting badly" : "")
-        + (x.latest.view === "changed" ? ", camera re-aimed (general zone)" : "");
-      if (x.latest.model === "yolo11n.pt") oldModel = true;
+    let tag = "", note;
+    if (c.video){
+      // vehicles per hour across this camera's counting lines, from its latest run
+      const rows = (d.video || []).filter(r => r.camera === c.id);
+      const last = rows.length ? rows[rows.length - 1].t : null;
+      const rate = last ? rows.filter(r => r.t === last)
+        .reduce((a, r) => a + Math.round(r.veh / r.secs * 3600), 0) : null;
+      $("n"+i).textContent = rate == null ? "–" : rate;
+      note = last ? "Latest counting run " + fmtTime(last) : "Waiting for the first counting run";
+      ["v5_", "v15_", "v60_"].forEach(k => { $(k+i).textContent = "–"; $(k+i).parentNode.classList.add("none"); });
+      $(("sp")+i).innerHTML = videoSpark(d, c);
     } else {
-      $("n"+i).textContent = "–"; $("d"+i).classList.add("stale");
-      $("s"+i).textContent = "Waiting for the first upload";
+      if (x.latest){
+        const stale = now - new Date(x.latest.at).getTime() > 75*60000;
+        $("n"+i).textContent = x.latest.total ?? "–";
+        if (stale) tag = `<span class="tag warn" title="No new data for over an hour">stale</span>`;
+        else if (x.latest.view === "night") tag = `<span class="tag" title="Infrared: the model detects far less than is really on the road">infrared</span>`;
+        else if (x.latest.view === "changed") tag = `<span class="tag" title="Counted with the general fallback zone, which reads high">wide zone</span>`;
+        note = fmtTime(x.latest.at) + (stale ? ", no new data for over an hour" : "")
+          + (x.latest.view === "night" ? ", infrared - undercounting badly" : "")
+          + (x.latest.view === "changed" ? ", counted with the general zone" : "");
+        if (x.latest.model === "yolo11n.pt") oldModel = true;
+      } else {
+        $("n"+i).textContent = "–";
+        note = "Waiting for the first upload";
+      }
+      $("v5_"+i).textContent = fmtAvg(x.avg_5); $("v15_"+i).textContent = fmtAvg(x.avg_15); $("v60_"+i).textContent = fmtAvg(x.avg_60);
+      $("sp"+i).innerHTML = snapSpark(x, now, c);
     }
-    const fmtAvg = v => v == null ? "–" : Number(v).toFixed(1);
-    $("v5_"+i).textContent = fmtAvg(x.avg_5); $("v15_"+i).textContent = fmtAvg(x.avg_15); $("v60_"+i).textContent = fmtAvg(x.avg_60);
-    $("sp"+i).innerHTML = sparkHtml(x.last15, now, x.avg_15, x.avg_60);
+    $("tg"+i).innerHTML = tag;
+    $("s"+i).textContent = note;
     $("p"+i).textContent = x.peak ? "Peak " + x.peak.total + " at " + fmtTime(x.peak.at) : "";
     $("h"+i).textContent = (x.latest && x.latest.people != null) ? "People " + x.latest.people : "";
+    const t = $("th"+i); if (t) t.src = "/api/snapshot?cam=" + encodeURIComponent(c.id) + "&t=" + snapSlot();
   });
   $("methodNote").textContent = oldModel ?
     "Lakeland Dr S at Treetops's older frames were counted with an earlier method (whole image only) that misses more vehicles in heavy traffic; new frames use the same method as the other cameras." : "";
-  CAMS.forEach((c, i) => { const t = $("t"+i); if (t) t.src = "/api/snapshot?cam=" + encodeURIComponent(c.id) + "&t=" + snapSlot(); });
-  drawSeries(now); drawHours(); drawVideo(now);
+  drawSeries(now); drawHours();
+  // only an open row has a chart box with a width to draw into
+  CAMS.forEach((c, i) => { if (c.video && !$("pn"+i).hidden) drawVideoOne(now, c, i); });
 }
 
 function boxW(id){ return Math.max(260, Math.floor($(id).clientWidth - 20)); }
@@ -442,7 +530,7 @@ function drawSeries(now){
   $("chartTitle").textContent = "Vehicles in view, " + smoothingLabel(maMin) + " moving average";
   const W = boxW("chart"), H = W < 500 ? 230 : 280, L = 40, R = 14, T = 12, B = 30;
   const t0 = now - span*1000;
-  const shown = CAMS.filter(c => !hidden.has(c.id));
+  const shown = SNAPS.filter(c => !hidden.has(c.id));
   if (!shown.length){ $("chart").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No cameras selected. Use the names above to switch them back on.</p>'; scrub.chart = null; $("chartNote").textContent = ""; return; }
   const series = shown.map(c => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash,
     gap: bucket*1000*3,
@@ -469,47 +557,25 @@ function drawSeries(now){
     "Touch and slide across the chart to compare the cameras at any time.";
 }
 
-// Live-video cameras: vehicles passing counting lines (vehicles per hour)
-const VIDEOS = [
-  {id:"university-e-ms7", name:"University Ave E at MS 7", city:"Oxford", color:"var(--oxford)", lines:["University Ave", "Ramp"]},
-  {id:"i10-orleans", name:"I-10 at Orleans Ave", city:"New Orleans", color:"var(--nola)", lines:["I-10"],
-   note:"Louisiana DOTD (Department of Transportation and Development) public camera on the elevated interstate near the French Quarter; both directions combined."}
-];
-$("videos").innerHTML = VIDEOS.map((v, k) => `<section>
-    <div class="head"><h2>Live video: ${esc(v.name)}, ${esc(v.city)}</h2><span class="lede" id="videoNow${k}" style="margin:0"></span></div>
-    <div class="live">
-      <video id="liveVid${k}" playsinline muted controls preload="none" hidden
-             aria-label="Live video from ${esc(v.name)}"></video>
-      <button class="liveplay" id="livePlay${k}" type="button" aria-label="Play the live video from ${esc(v.name)}">
-        <img id="livePoster${k}" alt="" aria-hidden="true" decoding="async" onerror="this.style.display='none'">
-        <span class="liveui"><span class="playdot" aria-hidden="true"></span><span id="liveLabel${k}">Play live video</span></span>
-      </button>
-      <p class="note livemsg" id="liveMsg${k}" hidden role="status"></p>
-    </div>
-    <p class="note">The stream is the agency's own, played through this site; it starts only when you press play. The counts below come from short samples of the same camera, not from this player.</p>
-    <div class="key" id="vkey${k}"><span class="kg">${esc(v.city)}:</span>${v.lines.map((l, j) => `<span>${swatch(v.color, DASHES[j])}${esc(l)}</span>`).join("")}</div>
-    <div class="chart" id="video${k}"></div>
-    <p class="note">Vehicles per hour crossing a counting line on each road, from live video. Unlike the snapshot cameras, this counts vehicles passing, not vehicles in view.${v.note ? " " + esc(v.note) : ""}</p>
-  </section>`).join("");
-
 // Click to play, not autoplay: every segment is served through this site's own
 // /api/stream proxy (the agencies send no CORS (cross-origin resource sharing)
 // headers, so hls.js cannot fetch them cross-origin), which means autoplay would
-// push video for every visitor who ever loads the page. One player per camera.
+// push video for every visitor who ever loads the page. Opening a row closes any
+// other, so at most one stream is ever running.
 const HLS_JS = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
 const hlsFor = [];
 let hlsLoader = null;
 
-function liveMsg(k, text){
-  const el = $("liveMsg" + k);
+function liveMsg(i, text){
+  const el = $("lmsg" + i);
   if (!text){ el.hidden = true; el.textContent = ""; return; }
   el.textContent = text; el.hidden = false;
 }
-function liveFailed(k, why){
-  liveMsg(k, why + " The stream may also be down at the source.");
-  $("liveVid" + k).hidden = true; $("livePlay" + k).hidden = false;
-  $("liveLabel" + k).textContent = "Try again";
-  if (hlsFor[k]){ try { hlsFor[k].destroy(); } catch (_){} hlsFor[k] = null; }
+function liveFailed(i, why){
+  liveMsg(i, why + " The stream may also be down at the source.");
+  $("lvid" + i).hidden = true; $("lplay" + i).hidden = false;
+  $("llabel" + i).textContent = "Try again";
+  if (hlsFor[i]){ try { hlsFor[i].destroy(); } catch (_){} hlsFor[i] = null; }
 }
 function loadHlsJs(){
   // only needed where the browser cannot play HLS itself; Safari and iOS can
@@ -523,11 +589,11 @@ function loadHlsJs(){
   }).catch(e => { hlsLoader = null; throw e; });
   return hlsLoader;
 }
-async function startLive(k){
-  const v = VIDEOS[k]; if (!v) return;
-  const vid = $("liveVid" + k), src = "/api/stream?cam=" + encodeURIComponent(v.id);
-  $("liveLabel" + k).textContent = "Starting…";
-  liveMsg(k, "");
+async function startLive(i){
+  const c = CAMS[i]; if (!c) return;
+  const vid = $("lvid" + i), src = "/api/stream?cam=" + encodeURIComponent(c.id);
+  $("llabel" + i).textContent = "Starting…";
+  liveMsg(i, "");
   try {
     if (vid.canPlayType("application/vnd.apple.mpegurl")){
       vid.src = src;
@@ -535,51 +601,77 @@ async function startLive(k){
       const Hls = await loadHlsJs();
       if (!Hls.isSupported()) throw new Error("unsupported");
       const h = new Hls({ liveDurationInfinity: true, lowLatencyMode: false });
-      hlsFor[k] = h;
-      h.on(Hls.Events.ERROR, (_, data) => { if (data && data.fatal) liveFailed(k, "The live stream stopped."); });
+      hlsFor[i] = h;
+      h.on(Hls.Events.ERROR, (_, data) => { if (data && data.fatal) liveFailed(i, "The live stream stopped."); });
       h.loadSource(src); h.attachMedia(vid);
     }
-    $("livePlay" + k).hidden = true; vid.hidden = false;
+    $("lplay" + i).hidden = true; vid.hidden = false;
     await vid.play().catch(() => {});   // controls are on, so a blocked autoplay is recoverable
   } catch (e) {
-    liveFailed(k, e && e.message === "script blocked"
+    liveFailed(i, e && e.message === "script blocked"
       ? "Couldn't load the video player."
       : "Live video isn't available right now.");
   }
 }
-VIDEOS.forEach((v, k) => {
-  $("livePoster" + k).src = "/api/snapshot?cam=" + encodeURIComponent(v.id) + "&t=" + snapSlot();
-  $("livePlay" + k).addEventListener("click", () => startLive(k));
-  $("liveVid" + k).addEventListener("error", () => liveFailed(k, "Live video isn't available right now."));
+function stopLive(i){
+  const vid = $("lvid" + i);
+  if (hlsFor[i]){ try { hlsFor[i].destroy(); } catch (_){} hlsFor[i] = null; }
+  try { vid.pause(); } catch (_){}
+  vid.removeAttribute("src"); try { vid.load(); } catch (_){}
+  vid.hidden = true; $("lplay" + i).hidden = false;
+  $("llabel" + i).textContent = "Play live video";
+  liveMsg(i, "");
+}
+
+// A row opens to its live video. Only one at a time: these are real streams
+// proxied through this site, and leaving several running would keep pulling
+// video for rows the reader has scrolled past.
+function setRow(i, open){
+  const btn = $("rb" + i), panel = $("pn" + i);
+  btn.setAttribute("aria-expanded", String(open));
+  panel.hidden = !open;
+  if (open){
+    $("lposter" + i).src = "/api/snapshot?cam=" + encodeURIComponent(CAMS[i].id) + "&t=" + snapSlot();
+    if (CAMS[i].video && lastData) drawVideoOne(new Date(lastData.now).getTime(), CAMS[i], i);
+  } else stopLive(i);
+}
+CAMS.forEach((c, i) => {
+  $("rb" + i).addEventListener("click", () => {
+    const open = $("rb" + i).getAttribute("aria-expanded") === "true";
+    CAMS.forEach((_, k) => { if (k !== i && $("rb" + k).getAttribute("aria-expanded") === "true") setRow(k, false); });
+    setRow(i, !open);
+  });
+  $("lplay" + i).addEventListener("click", () => startLive(i));
+  $("lvid" + i).addEventListener("error", () => liveFailed(i, "Live video isn't available right now."));
+  if (c.video) $("vkey" + i).innerHTML = c.video.lines
+    .map((l, j) => `<span>${swatch(c.color, DASHES[j])}${esc(l)}</span>`).join("");
 });
 
-function drawVideo(now){ VIDEOS.forEach((v, k) => drawVideoOne(now, v, k)); }
-function drawVideoOne(now, v, k){
+function drawVideoOne(now, c, i){
   const d = lastData; if (!d) return;
-  const id = "video" + k;
-  const VLINES = v.lines.map((l, j) => ({line: l, color: v.color, dash: DASHES[j]}));
-  const rows = (d.video || []).filter(r => r.camera === v.id), {span} = WINDOWS[win];
+  const id = "vchart" + i;
+  const VLINES = c.video.lines.map((l, j) => ({line: l, color: c.color, dash: DASHES[j]}));
+  const rows = (d.video || []).filter(r => r.camera === c.id), {span} = WINDOWS[win];
   const W = boxW(id), H = W < 500 ? 210 : 240, L = 44, R = 14, T = 12, B = 30, t0 = now - span*1000;
   const series = VLINES.map(x => ({name: x.line, color: x.color, dash: x.dash, gap: 45*60*1000,
     pts: rows.filter(r => r.line === x.line).map(r => ({x: new Date(r.t).getTime(), v: Math.round(r.veh / r.secs * 3600), n: r.veh}))}));
   const all = series.flatMap(x => x.pts);
-  const last = rows.length ? rows[rows.length - 1].t : null;
-  $("videoNow" + k).textContent = last ? "Latest run " + fmtTime(last) + ": " + series.map(x => { const q = x.pts.filter(y => y.x === new Date(last).getTime())[0]; return x.name + " " + (q ? q.v : "–") + "/hr"; }).join(", ") : "Waiting for the first run";
   if (!all.length){ $(id).innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No video counts in this window yet.</p>'; scrub[id] = null; return; }
   const ymax = Math.max(100, Math.ceil(Math.max(...all.map(p => p.v)) * 1.15 / 100) * 100);
   const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
   const ticks = Math.max(2, Math.min(6, Math.floor((W-L-R) / 95)));
-  const xLabel = x => { let g = ""; for (let i = 0; i <= ticks; i++){ const t = t0 + span*1000*i/ticks;
-    g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
+  const xLabel = x => { let g = ""; for (let k = 0; k <= ticks; k++){ const t = t0 + span*1000*k/ticks;
+    g += `<text x="${x(t)}" y="${H-8}" text-anchor="${k===0?"start":k===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
   drawLines(id, xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
   scrub[id].head = t => (win === "7d" ? fmtDay(t) + ", " : "") + fmtTime(t);
   scrub[id].unit = "vehicles/hr";
+  attachScrub(id);
 }
 
 function drawHours(){
   const d = lastData; if (!d) return;
   const W = boxW("hours"), H = W < 500 ? 190 : 220, L = 40, R = 14, T = 12, B = 28;
-  const shown = CAMS.filter(c => !hidden.has(c.id));
+  const shown = SNAPS.filter(c => !hidden.has(c.id));
   const series = shown.map(c => ({name: camLabel(c), color: c.color, dash: c.dash, gap: 1.5,
     pts: ((d.cams[c.id] || {}).hourly || []).map(h => ({x: h.hr, v: Number(h.avg), n: h.n,
       night: (h.night || 0) * 2 > h.n}))}));
@@ -626,7 +718,10 @@ function hideAt(id){
     svg.querySelectorAll(".mk").forEach(m => m.setAttribute("visibility", "hidden")); }
   if (tip) tip.hidden = true;
 }
+const scrubbing = new Set();
 function attachScrub(id){
+  if (scrubbing.has(id)) return;       // row charts redraw on every open and refresh
+  scrubbing.add(id);
   const box = $(id); let active = false;
   const pick = e => {
     const st = scrub[id], svg = box.querySelector(":scope > svg"); if (!st || !svg || !st.xs.length) return;
@@ -640,8 +735,10 @@ function attachScrub(id){
   box.addEventListener("pointercancel", () => { active = false; });
   box.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !active) hideAt(id); });
 }
-attachScrub("chart"); attachScrub("hours"); VIDEOS.forEach((v, k) => attachScrub("video" + k));
-document.addEventListener("pointerdown", e => { if (!e.target.closest(".chart")){ hideAt("chart"); hideAt("hours"); VIDEOS.forEach((v, k) => hideAt("video" + k)); } });
+attachScrub("chart"); attachScrub("hours");
+document.addEventListener("pointerdown", e => {
+  if (!e.target.closest(".chart")) scrubbing.forEach(id => { if ($(id)) hideAt(id); });
+});
 
 $("seg").addEventListener("click", e => {
   const b = e.target.closest("button[data-w]"); if (!b) return;
@@ -651,7 +748,12 @@ $("seg").addEventListener("click", e => {
 });
 $("refreshBtn").addEventListener("click", () => { retried = false; load(); });
 let rz;
-new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { if (lastData){ drawSeries(new Date(lastData.now).getTime()); drawHours(); drawVideo(new Date(lastData.now).getTime()); } }, 120); }).observe(document.querySelector("main"));
+new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => {
+  if (!lastData) return;
+  const t = new Date(lastData.now).getTime();
+  drawSeries(t); drawHours();
+  CAMS.forEach((c, i) => { if (c.video && !$("pn"+i).hidden) drawVideoOne(t, c, i); });
+}, 120); }).observe(document.querySelector("main"));
 setInterval(() => { if (document.visibilityState === "visible") load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastOk > 60000) load(); });
 

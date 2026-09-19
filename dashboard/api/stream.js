@@ -15,6 +15,12 @@
 // way rather than by MDOT host+stream id so feeds from other agencies work too; these
 // must match the video cameras in cameras.json.
 const CAMS = {
+  "lakeland-treetops": "https://streamingjxn2.mdottraffic.com/rtplive/011404.stream/",
+  "lakeland-n-airport": "https://streamingjxn2.mdottraffic.com/rtplive/010102.stream/",
+  "jackson-e-fraternity": "https://streamingjxn4.mdottraffic.com/rtplive/060106.stream/",
+  "jackson-w-fraternity": "https://streamingjxn4.mdottraffic.com/rtplive/060105.stream/",
+  "university-w-lamar": "https://streamingjxn4.mdottraffic.com/rtplive/060204.stream/",
+  "lamar-n-university": "https://streamingjxn4.mdottraffic.com/rtplive/060202.stream/",
   "university-e-ms7": "https://streamingjxn4.mdottraffic.com/rtplive/060205.stream/",
   "i10-orleans": "https://ITSStreamingNO.dotd.la.gov/public/nor-cam-113.streams/",
 };

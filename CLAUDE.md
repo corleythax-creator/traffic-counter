@@ -37,14 +37,16 @@ cameras.json      Extra/overriding cameras, "sample" list for GitHub, "video" ca
 requirements.txt  ultralytics, numpy, pillow (workflow installs CPU torch + opencv-python-headless)
 .github/workflows/sample.yml   Cron */15, 14-min timeout, secrets SUPABASE_URL / SUPABASE_KEY
 dashboard/
-  index.html      Main page: city groups, camera cards (thumbnail, now, 5/15/60-min avgs), live-video player, charts
+  index.html      Main page: one row per camera (thumbnail, now, 5/15/60-min avgs, 15-min
+                  sparkline); a row opens to its live video, and for the video cameras
+                  its per-line chart. Below: moving-average chart and hour-of-day chart
   camera.html     Per-camera detail page (?cam=<slug>&w=1h|6h|24h|7d), per-minute bars
   api/traffic.js  -> Supabase RPC traffic_dashboard(win)
   api/camera.js   -> Supabase RPC traffic_camera(cam, win)
   api/snapshot.js -> proxies the MDOT thumbnail for a camera (15 s CDN cache)
-  api/stream.js   -> proxies the HLS live stream (playlist rewritten so segments
-                     come back through this endpoint; only cameras in its own CAMS,
-                     only bare filenames inside that camera's stream directory)
+  api/stream.js   -> proxies the HLS live stream for every camera (playlist rewritten so
+                     segments come back through this endpoint; only cameras in its own
+                     CAMS, only bare filenames inside that camera's stream directory)
 docs/schema.sql   Database objects used by this project (reference, not a migration)
 ```
 
@@ -66,7 +68,7 @@ Video URL: `https://{host}.mdottraffic.com/rtplive/{stream}.stream/playlist.m3u8
 
 Finding a stream ID: MDOT's mobile site lists sites at `https://mobile.mdottraffic.com/listCamLogicalSites.aspx?sublocationid=<n>`, but the stream ID is not in the page. The reliable way is to probe `streamname=0XXXYY` thumbnails and OCR (optical character recognition) or read the name overlay at the bottom of the image.
 
-Camera slugs appear in several places that must stay in sync when adding or renaming a camera: `upload.py` CAMERAS or `cameras.json`, `run_local.py` SNAPSHOT_CAMS (plus cameras.json "sample"), `sample.py` SAMPLE_CAMERAS (plus cameras.json "sample"), `dashboard/index.html` CAMS, `dashboard/camera.html` CAMERAS, `dashboard/api/snapshot.js` CAMS.
+Camera slugs appear in several places that must stay in sync when adding or renaming a camera: `upload.py` CAMERAS or `cameras.json`, `run_local.py` SNAPSHOT_CAMS (plus cameras.json "sample"), `sample.py` SAMPLE_CAMERAS (plus cameras.json "sample"), `dashboard/index.html` CAMS, `dashboard/camera.html` CAMERAS, `dashboard/api/snapshot.js` CAMS, `dashboard/api/stream.js` CAMS. In `dashboard/index.html` CAMS, snapshot and video cameras are one list; a `video` key (with its `lines`) marks the ones counted by line crossings, and `SNAPS` is what the two charts plot.
 
 ## Counting method (upload.py)
 
@@ -138,7 +140,7 @@ Add a snapshot camera:
 3. Add it to `run_local.py` SNAPSHOT_CAMS if it should run on the desktop (cameras.json "sample" entries are already included).
 4. Add it to `dashboard/index.html` CAMS (with its city group), `dashboard/camera.html` CAMERAS, and `dashboard/api/snapshot.js` CAMS.
 
-Add a video camera: add under cameras.json "video" with `crop` [x, y, w, h] in 1280x720 pixels and `lines` {name: [[x1,y1],[x2,y2]]} drawn across each road. Direction "toward" = crossing toward the camera side of the line. Validate by making a contact sheet of every counted crossing from a 1 to 2 minute clip. Update `drawVideo` in `dashboard/index.html` (it filters `university-e-ms7`).
+Add a video camera: add under cameras.json "video" with `crop` [x, y, w, h] in 1280x720 pixels and `lines` {name: [[x1,y1],[x2,y2]]} drawn across each road. Direction "toward" = crossing toward the camera side of the line. Validate by making a contact sheet of every counted crossing from a 1 to 2 minute clip. Then add it to `dashboard/index.html` CAMS with a `video: {lines: [...]}` key, and to `dashboard/api/stream.js` CAMS so the player can reach it.
 
 Change a dashboard query: edit the SQL function in Supabase (keep it security definer, read-only, `grant execute ... to anon`), then the page. `dashboard/api/*.js` only forwards to the RPC with a short CDN cache.
 
