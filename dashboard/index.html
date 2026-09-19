@@ -91,11 +91,12 @@ button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
   touch-action:pan-y;-webkit-user-select:none;user-select:none;cursor:crosshair}
 .chart svg{display:block;width:100%;height:auto;overflow:visible}
 .chart text{fill:var(--muted);font-family:inherit;font-size:12px}
+.ctxbar{fill:var(--muted);opacity:.32}
 .guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
 .tip{position:absolute;top:6px;left:0;background:var(--ink);color:var(--bg);font-size:.85rem;line-height:1.35;
   padding:6px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:2}
 .tip strong{display:block}
-.tip svg{vertical-align:middle;margin-right:6px}
+.tip svg{width:26px;height:8px;display:inline-block;vertical-align:middle;margin-right:6px}
 .tip[hidden]{display:none}
 .note{font-size:.88rem;color:var(--muted);margin-top:8px;max-width:75ch}
 .msg{margin-top:16px;padding:12px 14px;border-left:4px solid var(--warn);background:var(--panel);border-radius:0 8px 8px 0}
@@ -119,7 +120,8 @@ footer p + p{margin-top:8px}
     <div class="head">
       <h2 id="chartTitle">Vehicles in view over time</h2>
       <div class="seg" role="group" aria-label="Time window" id="seg">
-        <button data-w="6h" aria-pressed="true">6 hours</button>
+        <button data-w="2h" aria-pressed="true">2 hours</button>
+        <button data-w="6h" aria-pressed="false">6 hours</button>
         <button data-w="24h" aria-pressed="false">24 hours</button>
         <button data-w="7d" aria-pressed="false">7 days</button>
       </div>
@@ -167,11 +169,12 @@ const CAMS = [
 GROUPS.forEach(g => CAMS.filter(c => c.group === g.name).forEach((c, k) => { c.color = g.color; c.sign = g.sign; c.dash = DASHES[k % DASHES.length]; }));
 const swatch = (color, dash) => `<svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="${color}" stroke-width="3" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/></svg>`;
 const WINDOWS = {
+  "2h":  {interval:"2 hours", bucket:60,   span:7200,   label:"per minute"},
   "6h":  {interval:"6 hours", bucket:900,  span:21600,  label:"per 15 minutes"},
   "24h": {interval:"24 hours",bucket:1800, span:86400,  label:"per 30 minutes"},
   "7d":  {interval:"7 days",  bucket:7200, span:604800, label:"per 2 hours"}
 };
-let win = "6h", lastOk = 0, busy = false, pending = false, retried = false, lastData = null;
+let win = "2h", lastOk = 0, busy = false, pending = false, retried = false, lastData = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtTime = t => new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",minute:"2-digit"}).format(new Date(t));
@@ -314,13 +317,21 @@ const scrub = {};
 
 function niceMax(v){ return Math.max(1, Math.ceil(v * 1.15 * 2) / 2); }
 
-function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax){
+function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax, bars){
   const pw = W-L-R, ph = H-T-B;
   const x = v => L + (v - xMin) / (xMax - xMin) * pw, y = v => T + ph - v / ymax * ph;
   let g = "";
   for (let k = 0; k <= 4; k++){ const v = ymax*k/4, yy = y(v);
     g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--rule)"/><text x="${L-6}" y="${yy+4}" text-anchor="end">${v % 1 ? v.toFixed(1) : v}</text>`; }
   g += xLabel(x);
+  let back = "";
+  if (bars && bars.pts.length){
+    const bw = bars.width;
+    bars.pts.forEach(p => {
+      const top = y(Math.min(p.v, ymax)), h = Math.max(p.v > 0 ? 1 : 0, T + ph - top);
+      back += `<rect class="ctxbar" x="${(x(p.x) - bw/2).toFixed(1)}" y="${(T+ph-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}"/>`;
+    });
+  }
   let lines = "";
   series.forEach(s => {
     // break the line where there is a gap bigger than 1.5 buckets
@@ -329,31 +340,74 @@ function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax){
       const cmd = (prev === null || p.x - prev > s.gap) ? "M" : "L";
       path += `${cmd}${x(p.x).toFixed(1)},${y(p.v).toFixed(1)}`; prev = p.x;
     });
-    if (path) lines += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`;
+    if (path) lines += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`;
     if (s.pts.length < 40) s.pts.forEach(p => { lines += `<circle cx="${x(p.x)}" cy="${y(p.v)}" r="2.5" fill="${s.color}"/>`; });
   });
   const marks = series.map((s, i) => `<circle class="mk" data-s="${i}" r="5" fill="${s.color}" stroke="var(--panel)" stroke-width="2" visibility="hidden"/>`).join("");
-  $(id).innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img">${g}${lines}<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>${marks}</svg>`;
-  scrub[id] = {W, xs: xs.map(v => ({v, px: x(v)})), series, y, x};
+  $(id).innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img">${g}${back}${lines}<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>${marks}</svg>`;
+  scrub[id] = {W, xs: xs.map(v => ({v, px: x(v)})), series, y, x, bars};
+}
+
+// Smoothing window for the per-camera curves: a twenty-fourth of what is on
+// screen, which is exactly 5 minutes on the default 2-hour view, and never
+// narrower than three buckets.
+function smoothingMinutes(spanSec, bucketSec){
+  return Math.max(3, Math.round(Math.max(spanSec / 24, bucketSec * 3) / 60));
+}
+const smoothingLabel = m => m < 60 ? m + "-min"
+  : (m % 60 === 0 ? m / 60 : (m / 60).toFixed(1)) + "-hr";
+
+// Centred moving average over a camera's buckets, each weighted by how many
+// frames it was built from. Centred because this is the shape of a period
+// already past, so lagging it half a window would misplace the peaks.
+function smooth(pts, spanMs){
+  const half = spanMs / 2, out = [];
+  let lo = 0, hi = 0, wsum = 0, nsum = 0;
+  for (let i = 0; i < pts.length; i++){
+    const t = pts[i].x;
+    while (hi < pts.length && pts[hi].x <= t + half){ wsum += pts[hi].v * pts[hi].n; nsum += pts[hi].n; hi++; }
+    while (lo < pts.length && pts[lo].x < t - half){ wsum -= pts[lo].v * pts[lo].n; nsum -= pts[lo].n; lo++; }
+    if (nsum) out.push({x: t, v: wsum / nsum, n: pts[i].n, raw: pts[i].v});
+  }
+  return out;
 }
 
 function drawSeries(now){
   const d = lastData; if (!d) return;
   const {bucket, span, label, interval} = WINDOWS[win];
+  const maMin = smoothingMinutes(span, bucket);
   $("chartTitle").textContent = "Vehicles in view, " + label;
   const W = boxW("chart"), H = W < 500 ? 230 : 280, L = 40, R = 14, T = 12, B = 30;
   const t0 = now - span*1000;
-  const series = CAMS.map(c => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash, gap: bucket*1000*1.5,
-    pts: ((d.cams[c.id] || {}).series || []).map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n, peak: s.peak})).filter(p => !isNaN(p.v))}));
-  const all = series.flatMap(s => s.pts);
+  const raw = CAMS.map(c => ((d.cams[c.id] || {}).series || [])
+    .map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n, peak: s.peak}))
+    .filter(p => !isNaN(p.v) && p.x >= t0));
+  // The bars are every camera pooled into one level per bucket -- frame-weighted,
+  // so it is the average vehicles per frame across the network, on the same scale
+  // as the per-camera curves and therefore the same axis.
+  const pool = new Map();
+  raw.forEach(pts => pts.forEach(p => {
+    const e = pool.get(p.x) || {w: 0, n: 0}; e.w += p.v * p.n; e.n += p.n; pool.set(p.x, e);
+  }));
+  const bars = [...pool.entries()].filter(([, e]) => e.n).map(([x, e]) => ({x, v: e.w / e.n, n: e.n}))
+    .sort((a, b) => a.x - b.x);
+  const series = CAMS.map((c, i) => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash,
+    gap: bucket*1000*3, pts: smooth(raw[i], maMin * 60000)}));
+  const all = series.flatMap(s => s.pts).concat(bars);
   if (!all.length){ $("chart").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">No frames from any camera in the last ${interval}.</p>`; scrub.chart = null; return; }
   const ymax = niceMax(Math.max(...all.map(p => p.v)));
   const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
   const ticks = Math.max(2, Math.min(6, Math.floor((W-L-R) / 95)));
   const xLabel = x => { let g = ""; for (let i = 0; i <= ticks; i++){ const t = t0 + span*1000*i/ticks;
     g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
-  drawLines("chart", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
+  const slot = bucket*1000 / (span*1000) * (W-L-R);
+  drawLines("chart", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax,
+            {pts: bars, width: Math.max(1, slot > 3 ? slot - 1.5 : slot), label: "All cameras"});
   scrub.chart.head = v => (win === "7d" ? fmtDay(v) + ", " : "") + fmtTime(v);
+  scrub.chart.smoothed = smoothingLabel(maMin) + " avg";
+  $("chartNote").textContent = "Grey bars are all cameras pooled, one bar " + label +
+    "; each coloured line is that camera's " + smoothingLabel(maMin) + " moving average. " +
+    "Touch and slide across the chart to compare the cameras at any time; tap a camera above for its minute-by-minute view.";
 }
 
 const VLINES = [{line:"University Ave", color:"var(--oxford)", dash:""}, {line:"Ramp", color:"var(--oxford)", dash:"7 4"}];
@@ -401,11 +455,19 @@ function showAt(id, i){
   const gl = svg.querySelector(".guide"); gl.setAttribute("x1", px); gl.setAttribute("x2", px); gl.setAttribute("visibility", "visible");
   tip.textContent = "";
   const hd = document.createElement("strong"); hd.textContent = st.head(xv); tip.appendChild(hd);
+  if (st.bars){
+    const b = st.bars.pts.find(q => q.x === xv), row = document.createElement("div");
+    const sw = document.createElement("span"); sw.innerHTML = `<svg width="26" height="8" aria-hidden="true"><rect class="ctxbar" x="8" y="0" width="10" height="8"/></svg>`;
+    row.appendChild(sw);
+    row.append(st.bars.label + ": " + (b ? b.v.toFixed(2) + " avg over " + b.n + " frames" : "no frames"));
+    tip.appendChild(row);
+  }
   st.series.forEach((s, k) => {
     const p = s.pts.find(q => q.x === xv), mk = svg.querySelector(`.mk[data-s="${k}"]`);
     const line = document.createElement("div"); const sw = document.createElement("span"); sw.innerHTML = swatch(s.color, s.dash);
     line.appendChild(sw);
-    if (p){ line.append(st.unit ? s.name + ": " + p.v + " " + st.unit + " (" + p.n + " counted)" : s.name + ": " + p.v.toFixed(2) + " avg" + (p.peak != null ? ", peak " + p.peak : ""));
+    if (p){ line.append(st.unit ? s.name + ": " + p.v + " " + st.unit + " (" + p.n + " counted)"
+              : s.name + ": " + p.v.toFixed(2) + " " + (st.smoothed || "avg") + (p.raw != null ? " (" + p.raw.toFixed(2) + " this bucket)" : ""));
       mk.setAttribute("cx", st.x(p.x)); mk.setAttribute("cy", st.y(p.v)); mk.setAttribute("visibility", "visible"); }
     else { line.append(s.name + ": no frames"); mk.setAttribute("visibility", "hidden"); }
     tip.appendChild(line);

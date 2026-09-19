@@ -72,7 +72,7 @@ alter table public.camera_refs enable row level security;
 
 -- Dashboard RPC functions: security definer, read-only aggregates, granted to anon.
 --   traffic_dashboard(win text default '6h') returns json
---     win: 6h (15-min buckets) | 24h (30-min) | 7d (2-hour)
+--     win: 2h (1-min buckets, the front page default) | 6h (15-min) | 24h (30-min) | 7d (2-hour)
 --     { now, cams: { <slug>: { latest{at,total,people,model,view}, avg_5, avg_15, avg_60,
 --                              frames, avg, people_avg, peak{at,total},
 --                              last15[{t,avg,peak,n}]  -- 1-min buckets, always the last 15 min
