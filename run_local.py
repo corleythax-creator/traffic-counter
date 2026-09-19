@@ -29,12 +29,21 @@ stop = threading.Event()
 
 def video_loop(cam):
     while not stop.is_set():
+        start = time.time()
         r = subprocess.run([sys.executable, str(HERE / "video.py"), "--camera", cam, "--seconds", str(VIDEO_WINDOW)],
                            capture_output=True, text=True)
         out = (r.stdout.strip() or r.stderr.strip()[-300:])
         print(f"{time.strftime('%H:%M')} video {cam}: {out.splitlines()[-1] if out else 'no output'}")
         if r.returncode != 0:
             stop.wait(30)  # stream hiccup: pause briefly, then try again
+        else:
+            # A run that skips counting (camera re-aimed, so the lines no longer fit)
+            # returns in about a second instead of spending the window in
+            # count_crossings, and it exits 0. Without pacing here the loop respawned
+            # it back-to-back: on Sep 18 that wrote 13,000 empty windows in an
+            # afternoon, ~90 a minute. A full window still starts the next one
+            # immediately, because there is nothing left to wait for.
+            stop.wait(max(0, VIDEO_WINDOW - (time.time() - start)))
 
 
 def main():
