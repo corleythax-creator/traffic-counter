@@ -13,18 +13,18 @@
   --bg:#E9EBE6; --panel:#F7F8F5; --ink:#1F2427; --muted:#5F676C; --rule:#CDD1CB;
   --sign:#0E6B45; --sign-ink:#FFFFFF; --warn:#9A3B12;
   --c1:#0E6B45; --c2:#C47F00; --c3:#2F5F98; --c4:#7A3E9D; --c5:#0F7C8C; --c6:#B5452F;
-  --jackson:#2F5F98; --oxford:#B5452F; --jackson-sign:#1F4E8C; --oxford-sign:#9C3A26;
+  --jackson:#2F5F98; --oxford:#B5452F; --nola:#6B3FA0; --jackson-sign:#1F4E8C; --oxford-sign:#9C3A26;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
-    --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; color-scheme:dark;
+    --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
-  --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; color-scheme:dark;
+  --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -49,24 +49,12 @@ a.sign:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.18)}
 a.sign:focus-visible{outline:3px solid var(--c2);outline-offset:3px}
 .thumb{grid-area:thumb;display:block;width:112px;aspect-ratio:352/240;height:auto;object-fit:cover;border-radius:3px;background:rgba(255,255,255,.12)}
 .sign-inner{border:2px solid var(--sign-ink);border-radius:7px;padding:8px 10px;height:100%;
-  display:grid;grid-template-columns:112px 1fr auto;grid-template-areas:"thumb legend now" "avgs avgs avgs" "spark spark spark" "meta meta meta";
+  display:grid;grid-template-columns:112px 1fr auto;grid-template-areas:"thumb legend now" "avgs avgs avgs" "meta meta meta";
   gap:6px 10px;align-items:center;position:relative}
 .avgs{grid-area:avgs;display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid rgba(255,255,255,.35);padding-top:6px;text-align:center}
 .avgs div + div{border-left:1px solid rgba(255,255,255,.35)}
 .avgs b{display:block;font-size:1.15rem;font-weight:800;line-height:1.1}
 .avgs span{font-size:.72rem;opacity:.9}
-.spark{grid-area:spark;border-top:1px solid rgba(255,255,255,.35);padding-top:8px}
-.spark .plot{position:relative;display:flex;align-items:flex-end;gap:2px;height:48px}
-.spark .col{flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%;
-  border-bottom:1px solid rgba(255,255,255,.55)}
-.spark .col.off{border-bottom-color:rgba(255,255,255,.14)}
-.spark .col i{display:block;width:100%;max-width:14px;min-height:2px;border-radius:3px 3px 0 0;
-  background:rgba(255,255,255,.58)}
-.spark .col i.hi{background:rgba(255,255,255,.96)}
-.spark .ref{position:absolute;left:0;right:0;border-top:1px dashed rgba(255,255,255,.6);pointer-events:none}
-.spark .sl{display:flex;justify-content:space-between;gap:10px;font-size:.7rem;margin-top:4px}
-.spark .sl .read{font-weight:600}
-.spark .sl .ax{opacity:.72;white-space:nowrap}
 .chip{position:absolute;top:10px;right:12px;width:28px;height:6px;border-radius:3px;background:var(--chip)}
 .legend{grid-area:legend;font-weight:800;font-size:1.05rem;line-height:1.1;align-self:start}
 .legend span{display:block;font-weight:600;font-size:.8em;opacity:.9;margin-top:2px}
@@ -87,11 +75,6 @@ section{margin-top:28px}
 button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
 .key{display:flex;gap:16px;flex-wrap:wrap;font-size:.88rem;color:var(--muted);margin-bottom:8px}
 .key i{display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
-.key button{font:inherit;font-size:inherit;color:inherit;background:none;border:0;padding:1px 3px;
-  border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;white-space:nowrap}
-.key button:hover{background:var(--panel)}
-.key button.kg{font-weight:800;color:var(--ink)}
-.key button[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
 .chart{position:relative;background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:12px 10px 6px;
   touch-action:pan-y;-webkit-user-select:none;user-select:none;cursor:crosshair}
 .chart svg{display:block;width:100%;height:auto;overflow:visible}
@@ -100,7 +83,7 @@ button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
 .tip{position:absolute;top:6px;left:0;background:var(--ink);color:var(--bg);font-size:.85rem;line-height:1.35;
   padding:6px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:2}
 .tip strong{display:block}
-.tip svg{width:26px;height:8px;display:inline-block;vertical-align:middle;margin-right:6px}
+.tip svg{vertical-align:middle;margin-right:6px}
 .tip[hidden]{display:none}
 .note{font-size:.88rem;color:var(--muted);margin-top:8px;max-width:75ch}
 .msg{margin-top:16px;padding:12px 14px;border-left:4px solid var(--warn);background:var(--panel);border-radius:0 8px 8px 0}
@@ -124,8 +107,7 @@ footer p + p{margin-top:8px}
     <div class="head">
       <h2 id="chartTitle">Vehicles in view over time</h2>
       <div class="seg" role="group" aria-label="Time window" id="seg">
-        <button data-w="2h" aria-pressed="true">2 hours</button>
-        <button data-w="8h" aria-pressed="false">8 hours</button>
+        <button data-w="6h" aria-pressed="true">6 hours</button>
         <button data-w="24h" aria-pressed="false">24 hours</button>
         <button data-w="7d" aria-pressed="false">7 days</button>
       </div>
@@ -135,12 +117,7 @@ footer p + p{margin-top:8px}
     <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time; tap a camera above for its minute-by-minute view. Camera pictures refresh with the counts.</p>
   </section>
 
-  <section>
-    <div class="head"><h2>Live video: University Ave E at MS 7, Oxford</h2><span class="lede" id="videoNow" style="margin:0"></span></div>
-    <div class="key" id="key3"></div>
-    <div class="chart" id="video"></div>
-    <p class="note">Vehicles per hour crossing a counting line on each road, from about 3.5 minutes of live video every 15 minutes. Unlike the snapshot cameras, this counts vehicles passing, not vehicles in view.</p>
-  </section>
+  <div id="videos"></div>
 
   <section>
     <div class="head"><h2>Typical hour of the day</h2></div>
@@ -150,7 +127,7 @@ footer p + p{margin-top:8px}
   </section>
 
   <footer>
-    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles. The bars on each camera show the last 15 minutes one minute at a time, with the past hour's average drawn through them as a dashed line; a blank slot is a minute with no frames, not a minute with no traffic.</p>
+    <p>Counts are YOLO (You Only Look Once) detections of vehicles visible in each snapshot, a measure of how busy each spot looks, not how many vehicles passed. Each camera is sampled for about 4 minutes every 15 minutes (Lakeland Dr S at Treetops was recorded continuously until Sept. 18). People are counted anywhere in each frame, separately from vehicles.</p>
     <p id="methodNote"></p>
     <p>Source: MDOT (Mississippi Department of Transportation) traffic cameras at mdottraffic.com.</p>
     <p style="margin-top:10px"><button class="refresh" id="refreshBtn">Refresh now</button></p>
@@ -173,12 +150,11 @@ const CAMS = [
 GROUPS.forEach(g => CAMS.filter(c => c.group === g.name).forEach((c, k) => { c.color = g.color; c.sign = g.sign; c.dash = DASHES[k % DASHES.length]; }));
 const swatch = (color, dash) => `<svg width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" stroke="${color}" stroke-width="3" stroke-linecap="round"${dash ? ` stroke-dasharray="${dash}"` : ""}/></svg>`;
 const WINDOWS = {
-  "2h":  {interval:"2 hours", bucket:60,   span:7200,   label:"per minute"},
-  "8h":  {interval:"8 hours", bucket:300,  span:28800,  label:"per 5 minutes"},
+  "6h":  {interval:"6 hours", bucket:900,  span:21600,  label:"per 15 minutes"},
   "24h": {interval:"24 hours",bucket:1800, span:86400,  label:"per 30 minutes"},
   "7d":  {interval:"7 days",  bucket:7200, span:604800, label:"per 2 hours"}
 };
-let win = "2h", lastOk = 0, busy = false, pending = false, retried = false, lastData = null;
+let win = "6h", lastOk = 0, busy = false, pending = false, retried = false, lastData = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtTime = t => new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",minute:"2-digit"}).format(new Date(t));
@@ -190,60 +166,6 @@ function ago(ms){ const m = Math.round(ms/60000); if (m < 1) return "just now"; 
 // Snapshot thumbnails refresh in 15-second slots so viewers share cached images
 const snapSlot = () => Math.floor(Date.now() / 15000);
 
-// One bar per minute for the last 15 minutes, with the past hour's average drawn
-// through them as a dashed reference. The three averages above the chart say how
-// busy it is; the chart's job is the part they can't show -- whether the last
-// quarter hour is building or easing against the hour behind it, and whether that
-// came from a steady climb or one spike. Bars above the hour line are bright, bars
-// below are dim, so the split reads without needing the line traced by eye. With no
-// hour to compare against yet there is no split, so every bar stays bright.
-// Each minute keeps a baseline segment: bright when the minute was sampled, dim
-// when it was not, and a sampled minute with no vehicles still shows a 2px nub --
-// a quiet minute must never look like an unsampled one, because the GitHub
-// collector only covers about 4 minutes in every 15.
-const SPARK_MIN = 15;
-
-function readTrend(avg15, avg60){
-  if (avg15 == null || avg60 == null) return "Waiting on an hour to compare with";
-  const a = Number(avg15), b = Number(avg60);
-  if (b <= 0) return a > 0 ? "Picking up after an empty hour" : "No vehicles in the past hour";
-  const rel = (a - b) / b;
-  if (Math.abs(rel) < 0.12) return "Steady, level with the past hour";
-  const dir = rel > 0 ? "Building" : "Easing", side = rel > 0 ? "above" : "below";
-  // percentages swing wildly on small averages, so only quote one when there is a base
-  if (b < 1) return dir + ", " + side + " the past hour";
-  return dir + ", " + Math.round(Math.abs(rel) * 100) + "% " + side + " the past hour";
-}
-
-function sparkHtml(rows, now, avg15, avg60){
-  const end = Math.floor(now / 60000), start = end - (SPARK_MIN - 1);
-  const by = new Map();
-  (rows || []).forEach(r => { const m = Math.floor(new Date(r.t).getTime() / 60000);
-    if (m >= start && m <= end) by.set(m, r); });
-  const vals = [...by.values()].map(r => Number(r.avg)).filter(v => !isNaN(v));
-  const ref = avg60 == null ? null : Number(avg60);
-  // the hour line has to stay on the chart even when the last 15 minutes sit well under it
-  const top = Math.max(vals.length ? Math.max(...vals) : 0, ref || 0);
-  const scale = top > 0 ? top * 1.08 : 1;
-
-  let cols = "";
-  for (let m = start; m <= end; m++){
-    const r = by.get(m), at = fmtTime(m * 60000);
-    if (!r){ cols += `<div class="col off" title="${esc(at + ": no frames")}"></div>`; continue; }
-    const v = Number(r.avg), pct = Math.max(0, Math.min(100, (v / scale) * 100));
-    const tip = at + ": " + v.toFixed(1) + " avg, peak " + r.peak +
-                " (" + r.n + (r.n === 1 ? " frame)" : " frames)");
-    cols += `<div class="col" title="${esc(tip)}">` +
-            `<i class="${ref == null || v > ref ? "hi" : ""}" style="height:${pct.toFixed(1)}%"></i></div>`;
-  }
-  const line = ref != null && top > 0
-    ? `<div class="ref" style="bottom:${Math.min(98, (ref / scale) * 100).toFixed(1)}%" ` +
-      `title="${esc("Past hour average: " + Number(avg60).toFixed(1))}"></div>` : "";
-  const read = vals.length ? readTrend(avg15, avg60) : "No frames in the last 15 minutes";
-  return `<div class="plot">${line}${cols}</div>` +
-         `<div class="sl"><span class="read">${esc(read)}</span><span class="ax">last 15 min</span></div>`;
-}
-
 // Sign cards, grouped by city
 const signHtml = (c, i) => `
   <a class="sign" style="--gs:${c.sign}" href="/camera.html?cam=${encodeURIComponent(c.id)}" aria-label="${esc(c.a + ' ' + c.b)}: minute-by-minute detail">
@@ -252,7 +174,6 @@ const signHtml = (c, i) => `
       <div class="legend">${esc(c.a)}<span>${esc(c.b)}</span></div>
       <div class="now"><div class="n" id="n${i}">–</div><div class="l">in view now</div></div>
       <div class="avgs"><div><b id="v5_${i}">–</b><span>5-min avg</span></div><div><b id="v15_${i}">–</b><span>15-min avg</span></div><div><b id="v60_${i}">–</b><span>1-hr avg</span></div></div>
-      <div class="spark" id="sp${i}"></div>
       <div class="meta">
         <div class="st"><span class="dot" id="d${i}"></span><span id="s${i}">Loading…</span></div>
         <span id="p${i}"></span><span id="h${i}"></span>
@@ -261,50 +182,9 @@ const signHtml = (c, i) => `
   </a>`;
 $("signs").innerHTML = GROUPS.map(g => `<h2 class="grp" style="--gc:${g.sign}"><i aria-hidden="true"></i>${esc(g.name)}</h2>
   <div class="signs">${CAMS.map((c, i) => c.group === g.name ? signHtml(c, i) : "").join("")}</div>`).join("");
-// Which cameras are switched off in the charts. The sign cards always show every
-// camera; this only filters the plots. Kept per browser so a choice survives a
-// reload, and tolerant of storage being unavailable (private windows, blocked
-// site data) because the page must still work without it.
-const hidden = new Set();
-try { (JSON.parse(localStorage.getItem("hiddenCams") || "[]") || []).forEach(id => {
-  if (CAMS.some(c => c.id === id)) hidden.add(id); }); } catch (_) {}
-function saveHidden(){ try { localStorage.setItem("hiddenCams", JSON.stringify([...hidden])); } catch (_) {} }
-
-const camLabel = c => c.a + " " + c.b.replace(/^at /, "@ ");
-function keyHtml(){
-  return GROUPS.map(g => {
-    const cams = CAMS.filter(c => c.group === g.name);
-    const on = cams.some(c => !hidden.has(c.id));
-    return `<button type="button" class="kg" data-group="${esc(g.name)}" aria-pressed="${on}" ` +
-             `title="${esc((on ? "Hide" : "Show") + " all " + g.name + " cameras")}">${esc(g.name)}</button>` +
-      cams.map(c => `<button type="button" class="kc" data-cam="${esc(c.id)}" aria-pressed="${!hidden.has(c.id)}" ` +
-        `title="${esc((hidden.has(c.id) ? "Show " : "Hide ") + camLabel(c))}">` +
-        `${swatch(c.color, c.dash)}${esc(camLabel(c))}</button>`).join("");
-  }).join("");
-}
-function renderKeys(){ const h = keyHtml(); $("key1").innerHTML = h; $("key2").innerHTML = h; }
-function redraw(){
-  renderKeys();
-  if (!lastData) return;
-  const now = new Date(lastData.now).getTime();
-  drawSeries(now); drawHours();
-}
-function onKeyClick(e){
-  const cb = e.target.closest("button[data-cam]");
-  if (cb){ const id = cb.dataset.cam;
-    if (hidden.has(id)) hidden.delete(id); else hidden.add(id);
-    saveHidden(); redraw(); return; }
-  const gb = e.target.closest("button[data-group]");
-  if (!gb) return;
-  const cams = CAMS.filter(c => c.group === gb.dataset.group);
-  // a group button turns its whole city off, or back on when any of it is already off
-  const on = cams.some(c => !hidden.has(c.id));
-  cams.forEach(c => on ? hidden.add(c.id) : hidden.delete(c.id));
-  saveHidden(); redraw();
-}
-$("key1").addEventListener("click", onKeyClick);
-$("key2").addEventListener("click", onKeyClick);
-renderKeys();
+const keyHtml = GROUPS.map(g => `<span class="kg">${esc(g.name)}:</span>` +
+  CAMS.filter(c => c.group === g.name).map(c => `<span>${swatch(c.color, c.dash)}${esc(c.a + " " + c.b.replace(/^at /, "@ "))}</span>`).join("")).join("");
+$("key1").innerHTML = keyHtml; $("key2").innerHTML = keyHtml;
 
 function showMsg(t, b){ $("msgTitle").textContent = t; $("msgBody").textContent = b || ""; $("msg").hidden = false; }
 function hideMsg(){ $("msg").hidden = true; }
@@ -347,7 +227,6 @@ function render(d){
     }
     const fmtAvg = v => v == null ? "–" : Number(v).toFixed(1);
     $("v5_"+i).textContent = fmtAvg(x.avg_5); $("v15_"+i).textContent = fmtAvg(x.avg_15); $("v60_"+i).textContent = fmtAvg(x.avg_60);
-    $("sp"+i).innerHTML = sparkHtml(x.last15, now, x.avg_15, x.avg_60);
     $("p"+i).textContent = x.peak ? "Peak " + x.peak.total + " at " + fmtTime(x.peak.at) : "";
     $("h"+i).textContent = (x.latest && x.latest.people != null) ? "People " + x.latest.people : "";
   });
@@ -377,7 +256,7 @@ function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax){
       const cmd = (prev === null || p.x - prev > s.gap) ? "M" : "L";
       path += `${cmd}${x(p.x).toFixed(1)},${y(p.v).toFixed(1)}`; prev = p.x;
     });
-    if (path) lines += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`;
+    if (path) lines += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`;
     if (s.pts.length < 40) s.pts.forEach(p => { lines += `<circle cx="${x(p.x)}" cy="${y(p.v)}" r="2.5" fill="${s.color}"/>`; });
   });
   const marks = series.map((s, i) => `<circle class="mk" data-s="${i}" r="5" fill="${s.color}" stroke="var(--panel)" stroke-width="2" visibility="hidden"/>`).join("");
@@ -385,46 +264,16 @@ function drawLines(id, xs, series, xLabel, W, H, L, R, T, B, xMin, xMax, ymax){
   scrub[id] = {W, xs: xs.map(v => ({v, px: x(v)})), series, y, x};
 }
 
-// Smoothing window for the per-camera curves: a twenty-fourth of what is on
-// screen, which is exactly 5 minutes on the default 2-hour view, and never
-// narrower than three buckets.
-function smoothingMinutes(spanSec, bucketSec){
-  return Math.max(3, Math.round(Math.max(spanSec / 24, bucketSec * 3) / 60));
-}
-const smoothingLabel = m => m % 60 === 0 ? (m / 60) + "-hr"
-  : m < 120 ? m + "-min" : (m / 60).toFixed(1) + "-hr";
-
-// Centred moving average over a camera's buckets, each weighted by how many
-// frames it was built from. Centred because this is the shape of a period
-// already past, so lagging it half a window would misplace the peaks.
-function smooth(pts, spanMs){
-  const half = spanMs / 2, out = [];
-  let lo = 0, hi = 0, wsum = 0, nsum = 0;
-  for (let i = 0; i < pts.length; i++){
-    const t = pts[i].x;
-    while (hi < pts.length && pts[hi].x <= t + half){ wsum += pts[hi].v * pts[hi].n; nsum += pts[hi].n; hi++; }
-    while (lo < pts.length && pts[lo].x < t - half){ wsum -= pts[lo].v * pts[lo].n; nsum -= pts[lo].n; lo++; }
-    if (nsum) out.push({x: t, v: wsum / nsum, n: pts[i].n, raw: pts[i].v});
-  }
-  return out;
-}
-
 function drawSeries(now){
   const d = lastData; if (!d) return;
   const {bucket, span, label, interval} = WINDOWS[win];
-  const maMin = smoothingMinutes(span, bucket);
-  $("chartTitle").textContent = "Vehicles in view, " + smoothingLabel(maMin) + " moving average";
+  $("chartTitle").textContent = "Vehicles in view, " + label;
   const W = boxW("chart"), H = W < 500 ? 230 : 280, L = 40, R = 14, T = 12, B = 30;
   const t0 = now - span*1000;
-  const shown = CAMS.filter(c => !hidden.has(c.id));
-  if (!shown.length){ $("chart").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No cameras selected. Use the names above to switch them back on.</p>'; scrub.chart = null; $("chartNote").textContent = ""; return; }
-  const series = shown.map(c => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash,
-    gap: bucket*1000*3,
-    pts: smooth(((d.cams[c.id] || {}).series || [])
-      .map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n}))
-      .filter(p => !isNaN(p.v) && p.x >= t0), maMin * 60000)}));
+  const series = CAMS.map(c => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash, gap: bucket*1000*1.5,
+    pts: ((d.cams[c.id] || {}).series || []).map(s => ({x: new Date(s.t).getTime(), v: Number(s.avg), n: s.n, peak: s.peak})).filter(p => !isNaN(p.v))}));
   const all = series.flatMap(s => s.pts);
-  if (!all.length){ $("chart").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">No frames from the selected cameras in the last ${interval}.</p>`; scrub.chart = null; $("chartNote").textContent = ""; return; }
+  if (!all.length){ $("chart").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">No frames from any camera in the last ${interval}.</p>`; scrub.chart = null; return; }
   const ymax = niceMax(Math.max(...all.map(p => p.v)));
   const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
   const ticks = Math.max(2, Math.min(6, Math.floor((W-L-R) / 95)));
@@ -432,43 +281,50 @@ function drawSeries(now){
     g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
   drawLines("chart", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
   scrub.chart.head = v => (win === "7d" ? fmtDay(v) + ", " : "") + fmtTime(v);
-  scrub.chart.smoothed = smoothingLabel(maMin) + " avg";
-  $("chartNote").textContent = "Each line is that camera's " + smoothingLabel(maMin) +
-    " moving average of vehicles per frame, sampled " + label +
-    ". Tap a camera name above to hide or show it, or a city to toggle the whole group. " +
-    "Touch and slide across the chart to compare the cameras at any time.";
 }
 
-const VLINES = [{line:"University Ave", color:"var(--oxford)", dash:""}, {line:"Ramp", color:"var(--oxford)", dash:"7 4"}];
-$("key3").innerHTML = `<span class="kg">Oxford:</span>` + VLINES.map(v => `<span>${swatch(v.color, v.dash)}${esc(v.line)}</span>`).join("");
-function drawVideo(now){
+// Live-video cameras: vehicles passing counting lines (vehicles per hour)
+const VIDEOS = [
+  {id:"university-e-ms7", name:"University Ave E at MS 7", city:"Oxford", color:"var(--oxford)", lines:["University Ave", "Ramp"]},
+  {id:"i10-orleans", name:"I-10 at Orleans Ave", city:"New Orleans", color:"var(--nola)", lines:["I-10"],
+   note:"Louisiana DOTD (Department of Transportation and Development) public camera on the elevated interstate near the French Quarter; both directions combined."}
+];
+$("videos").innerHTML = VIDEOS.map((v, k) => `<section>
+    <div class="head"><h2>Live video: ${esc(v.name)}, ${esc(v.city)}</h2><span class="lede" id="videoNow${k}" style="margin:0"></span></div>
+    <div class="key" id="vkey${k}"><span class="kg">${esc(v.city)}:</span>${v.lines.map((l, j) => `<span>${swatch(v.color, DASHES[j])}${esc(l)}</span>`).join("")}</div>
+    <div class="chart" id="video${k}"></div>
+    <p class="note">Vehicles per hour crossing a counting line on each road, from live video. Unlike the snapshot cameras, this counts vehicles passing, not vehicles in view.${v.note ? " " + esc(v.note) : ""}</p>
+  </section>`).join("");
+function drawVideo(now){ VIDEOS.forEach((v, k) => drawVideoOne(now, v, k)); }
+function drawVideoOne(now, v, k){
   const d = lastData; if (!d) return;
-  const rows = (d.video || []).filter(r => r.camera === "university-e-ms7"), {span} = WINDOWS[win];
-  const W = boxW("video"), H = W < 500 ? 210 : 240, L = 44, R = 14, T = 12, B = 30, t0 = now - span*1000;
+  const id = "video" + k;
+  const VLINES = v.lines.map((l, j) => ({line: l, color: v.color, dash: DASHES[j]}));
+  const rows = (d.video || []).filter(r => r.camera === v.id), {span} = WINDOWS[win];
+  const W = boxW(id), H = W < 500 ? 210 : 240, L = 44, R = 14, T = 12, B = 30, t0 = now - span*1000;
   const series = VLINES.map(v => ({name: v.line, color: v.color, dash: v.dash, gap: 45*60*1000,
     pts: rows.filter(r => r.line === v.line).map(r => ({x: new Date(r.t).getTime(), v: Math.round(r.veh / r.secs * 3600), n: r.veh}))}));
   const all = series.flatMap(s => s.pts);
   const last = rows.length ? rows[rows.length - 1].t : null;
-  $("videoNow").textContent = last ? "Latest run " + fmtTime(last) + ": " + series.map(s => { const p = s.pts.filter(q => q.x === new Date(last).getTime())[0]; return s.name + " " + (p ? p.v : "–") + "/hr"; }).join(", ") : "Waiting for the first run";
-  if (!all.length){ $("video").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No video counts in this window yet.</p>'; scrub.video = null; return; }
+  $("videoNow" + k).textContent = last ? "Latest run " + fmtTime(last) + ": " + series.map(s => { const p = s.pts.filter(q => q.x === new Date(last).getTime())[0]; return s.name + " " + (p ? p.v : "–") + "/hr"; }).join(", ") : "Waiting for the first run";
+  if (!all.length){ $(id).innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No video counts in this window yet.</p>'; scrub[id] = null; return; }
   const ymax = Math.max(100, Math.ceil(Math.max(...all.map(p => p.v)) * 1.15 / 100) * 100);
   const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
   const ticks = Math.max(2, Math.min(6, Math.floor((W-L-R) / 95)));
   const xLabel = x => { let g = ""; for (let i = 0; i <= ticks; i++){ const t = t0 + span*1000*i/ticks;
     g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
-  drawLines("video", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
-  scrub.video.head = v => (win === "7d" ? fmtDay(v) + ", " : "") + fmtTime(v);
-  scrub.video.unit = "vehicles/hr";
+  drawLines(id, xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
+  scrub[id].head = v => (win === "7d" ? fmtDay(v) + ", " : "") + fmtTime(v);
+  scrub[id].unit = "vehicles/hr";
 }
 
 function drawHours(){
   const d = lastData; if (!d) return;
   const W = boxW("hours"), H = W < 500 ? 190 : 220, L = 40, R = 14, T = 12, B = 28;
-  const shown = CAMS.filter(c => !hidden.has(c.id));
-  const series = shown.map(c => ({name: camLabel(c), color: c.color, dash: c.dash, gap: 1.5,
+  const series = CAMS.map(c => ({name: c.a + " " + c.b.replace(/^at /, "@ "), color: c.color, dash: c.dash, gap: 1.5,
     pts: ((d.cams[c.id] || {}).hourly || []).map(h => ({x: h.hr, v: Number(h.avg), n: h.n}))}));
   const all = series.flatMap(s => s.pts);
-  if (!all.length){ $("hours").innerHTML = `<p class="note" style="padding:24px 12px;margin:0">${shown.length ? "No data yet." : "No cameras selected."}</p>`; scrub.hours = null; return; }
+  if (!all.length){ $("hours").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No data yet.</p>'; scrub.hours = null; return; }
   const ymax = niceMax(Math.max(...all.map(p => p.v)));
   const step = W < 500 ? 6 : 3;
   const hl = h => h === 0 ? "12a" : h < 12 ? h + "a" : h === 12 ? "12p" : (h-12) + "p";
@@ -479,11 +335,7 @@ function drawHours(){
 }
 
 function showAt(id, i){
-  // ":scope > svg" and not "svg": the tooltip is a child of this box and fills with
-  // legend swatches on the first hover, which would otherwise be matched first --
-  // showAt then threw on every later move and hideAt quietly hid nothing, freezing
-  // the guide line and dots on the chart.
-  const st = scrub[id], box = $(id), svg = box.querySelector(":scope > svg"), tip = box.querySelector(".tip");
+  const st = scrub[id], box = $(id), svg = box.querySelector("svg"), tip = box.querySelector(".tip");
   if (!st || !svg || !st.xs[i]) return;
   const xv = st.xs[i].v, px = st.xs[i].px;
   const gl = svg.querySelector(".guide"); gl.setAttribute("x1", px); gl.setAttribute("x2", px); gl.setAttribute("visibility", "visible");
@@ -493,8 +345,7 @@ function showAt(id, i){
     const p = s.pts.find(q => q.x === xv), mk = svg.querySelector(`.mk[data-s="${k}"]`);
     const line = document.createElement("div"); const sw = document.createElement("span"); sw.innerHTML = swatch(s.color, s.dash);
     line.appendChild(sw);
-    if (p){ line.append(st.unit ? s.name + ": " + p.v + " " + st.unit + " (" + p.n + " counted)"
-              : s.name + ": " + p.v.toFixed(2) + " " + (st.smoothed || "avg") + (p.raw != null ? " (" + p.raw.toFixed(2) + " this bucket)" : ""));
+    if (p){ line.append(st.unit ? s.name + ": " + p.v + " " + st.unit + " (" + p.n + " counted)" : s.name + ": " + p.v.toFixed(2) + " avg" + (p.peak != null ? ", peak " + p.peak : ""));
       mk.setAttribute("cx", st.x(p.x)); mk.setAttribute("cy", st.y(p.v)); mk.setAttribute("visibility", "visible"); }
     else { line.append(s.name + ": no frames"); mk.setAttribute("visibility", "hidden"); }
     tip.appendChild(line);
@@ -505,7 +356,7 @@ function showAt(id, i){
   tip.style.left = Math.min(Math.max(4, left - tw/2), br.width - tw - 4) + "px";
 }
 function hideAt(id){
-  const box = $(id), svg = box.querySelector(":scope > svg"), tip = box.querySelector(".tip");
+  const box = $(id), svg = box.querySelector("svg"), tip = box.querySelector(".tip");
   if (svg){ const gl = svg.querySelector(".guide"); if (gl) gl.setAttribute("visibility", "hidden");
     svg.querySelectorAll(".mk").forEach(m => m.setAttribute("visibility", "hidden")); }
   if (tip) tip.hidden = true;
@@ -513,7 +364,7 @@ function hideAt(id){
 function attachScrub(id){
   const box = $(id); let active = false;
   const pick = e => {
-    const st = scrub[id], svg = box.querySelector(":scope > svg"); if (!st || !svg || !st.xs.length) return;
+    const st = scrub[id], svg = box.querySelector("svg"); if (!st || !svg || !st.xs.length) return;
     const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * st.W / r.width;
     let best = 0, bd = Infinity; st.xs.forEach((p, i) => { const dd = Math.abs(p.px - sx); if (dd < bd){ bd = dd; best = i; } });
     showAt(id, best);
@@ -524,8 +375,8 @@ function attachScrub(id){
   box.addEventListener("pointercancel", () => { active = false; });
   box.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !active) hideAt(id); });
 }
-attachScrub("chart"); attachScrub("hours"); attachScrub("video");
-document.addEventListener("pointerdown", e => { if (!e.target.closest(".chart")){ hideAt("chart"); hideAt("hours"); hideAt("video"); } });
+attachScrub("chart"); attachScrub("hours"); VIDEOS.forEach((v, k) => attachScrub("video" + k));
+document.addEventListener("pointerdown", e => { if (!e.target.closest(".chart")){ hideAt("chart"); hideAt("hours"); VIDEOS.forEach((v, k) => hideAt("video" + k)); } });
 
 $("seg").addEventListener("click", e => {
   const b = e.target.closest("button[data-w]"); if (!b) return;
