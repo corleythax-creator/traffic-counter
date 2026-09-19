@@ -11,9 +11,16 @@
 // This is deliberately NOT a general proxy: the camera must be in CAMS below, and a
 // requested path must be a single bare filename inside that camera's own stream
 // directory. Nothing else can be fetched through it.
+// Each camera's stream directory -- the folder its playlist.m3u8 sits in. Keyed this
+// way rather than by MDOT host+stream id so feeds from other agencies work too; these
+// must match the video cameras in cameras.json.
 const CAMS = {
-  "university-e-ms7": ["streamingjxn4", "060205"],
+  "university-e-ms7": "https://streamingjxn4.mdottraffic.com/rtplive/060205.stream/",
+  "i10-orleans": "https://ITSStreamingNO.dotd.la.gov/public/nor-cam-113.streams/",
 };
+// Normalised once, because new URL() lower-cases the host: a mixed-case base here
+// would stop matching the resolved segment URLs and nothing would be rewritten.
+const BASES = Object.fromEntries(Object.entries(CAMS).map(([k, v]) => [k, new URL(v).href]));
 
 const NAME = /^[A-Za-z0-9._-]{1,120}$/;          // one filename, no slashes, no ".."
 const QUERY = /^[A-Za-z0-9._=&%+-]{0,200}$/;      // Wowza sometimes appends a session id
@@ -25,8 +32,6 @@ const TYPES = [
   [/\.aac$/i, "audio/aac"],
 ];
 const typeFor = name => (TYPES.find(([re]) => re.test(name)) || [, "application/octet-stream"])[1];
-
-const base = (host, stream) => `https://${host}.mdottraffic.com/rtplive/${stream}.stream/`;
 
 // Turn one URI from a playlist into a link back through this endpoint. Anything that
 // does not resolve to a plain filename under this camera's directory is left alone
@@ -59,10 +64,9 @@ export function rewritePlaylist(text, cam, baseUrl) {
 
 export default async function handler(req, res) {
   const camId = String(req.query.cam || "");
-  const cam = CAMS[camId];
-  if (!cam) { res.status(404).end(); return; }
-  const [host, stream] = cam;
-  const baseUrl = base(host, stream);
+  const baseUrl = BASES[camId];
+  if (!baseUrl) { res.status(404).end(); return; }
+  const origin = new URL(baseUrl).origin;
 
   const raw = req.query.path == null ? "" : String(req.query.path);
   const [name, query = ""] = raw.split("?");
@@ -72,7 +76,7 @@ export default async function handler(req, res) {
 
   try {
     const r = await fetch(target, {
-      headers: { "User-Agent": "Mozilla/5.0", Referer: `https://${host}.mdottraffic.com/` },
+      headers: { "User-Agent": "Mozilla/5.0", Referer: origin + "/" },
     });
     if (!r.ok) { res.status(502).end(); return; }
 

@@ -13,18 +13,18 @@
   --bg:#E9EBE6; --panel:#F7F8F5; --ink:#1F2427; --muted:#5F676C; --rule:#CDD1CB;
   --sign:#0E6B45; --sign-ink:#FFFFFF; --warn:#9A3B12;
   --c1:#0E6B45; --c2:#C47F00; --c3:#2F5F98; --c4:#7A3E9D; --c5:#0F7C8C; --c6:#B5452F;
-  --jackson:#2F5F98; --oxford:#B5452F; --jackson-sign:#1F4E8C; --oxford-sign:#9C3A26;
+  --jackson:#2F5F98; --oxford:#B5452F; --nola:#6B3FA0; --jackson-sign:#1F4E8C; --oxford-sign:#9C3A26;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
-    --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; color-scheme:dark;
+    --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#16191B; --panel:#1F2326; --ink:#E6E9E4; --muted:#9AA3A8; --rule:#33393D;
-  --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; color-scheme:dark;
+  --sign:#12704A; --warn:#F08A5D; --c1:#3FA877; --c2:#F0B429; --c3:#6FA3E0; --c4:#C08BE0; --c5:#4FC3D1; --c6:#F08A6D; --jackson:#6FA3E0; --oxford:#F08A6D; --nola:#B38BE0; color-scheme:dark;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -115,6 +115,7 @@ button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
   display:inline-block;position:relative}
 .playdot::after{content:"";position:absolute;top:50%;left:54%;transform:translate(-50%,-50%);
   border-left:14px solid #fff;border-top:9px solid transparent;border-bottom:9px solid transparent}
+/* an author display rule beats the UA stylesheet's [hidden]{display:none} */
 .live video[hidden],.liveplay[hidden],.livemsg[hidden]{display:none}
 .msg{margin-top:16px;padding:12px 14px;border-left:4px solid var(--warn);background:var(--panel);border-radius:0 8px 8px 0}
 .msg[hidden]{display:none}
@@ -148,22 +149,7 @@ footer p + p{margin-top:8px}
     <p class="note" id="chartNote">Average vehicles per frame. Touch and slide across the chart to compare the cameras at any time; tap a camera above for its minute-by-minute view. Camera pictures refresh with the counts.</p>
   </section>
 
-  <section>
-    <div class="head"><h2>Live video: University Ave E at MS 7, Oxford</h2><span class="lede" id="videoNow" style="margin:0"></span></div>
-    <div class="live">
-      <video id="liveVid" playsinline muted controls preload="none" hidden
-             aria-label="Live video from University Ave E at MS 7"></video>
-      <button class="liveplay" id="livePlay" type="button" aria-label="Play the live video from University Ave E at MS 7">
-        <img id="livePoster" alt="" aria-hidden="true" decoding="async" onerror="this.style.display='none'">
-        <span class="liveui"><span class="playdot" aria-hidden="true"></span><span id="liveLabel">Play live video</span></span>
-      </button>
-      <p class="note livemsg" id="liveMsg" hidden role="status"></p>
-    </div>
-    <p class="note">The stream is MDOT's own, played through this site; it starts only when you press play. Counts below come from short samples of the same camera, not from this player.</p>
-    <div class="key" id="key3"></div>
-    <div class="chart" id="video"></div>
-    <p class="note">Vehicles per hour crossing a counting line on each road, from about 3.5 minutes of live video every 15 minutes. Unlike the snapshot cameras, this counts vehicles passing, not vehicles in view.</p>
-  </section>
+  <div id="videos"></div>
 
   <section>
     <div class="head"><h2>Typical hour of the day</h2></div>
@@ -380,63 +366,6 @@ function render(d){
   drawSeries(now); drawHours(); drawVideo(now);
 }
 
-// ---- live video ----------------------------------------------------------
-// Click to play rather than autoplay: every segment is served through this site's
-// own proxy, so an autoplaying stream would push video for every visitor who ever
-// loads the page. The poster is the same snapshot the cards use, already cached.
-const LIVE_CAM = "university-e-ms7";
-const HLS_JS = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
-let hlsLoader = null, hls = null;
-
-function liveMsg(text){
-  const el = $("liveMsg");
-  if (!text){ el.hidden = true; el.textContent = ""; return; }
-  el.textContent = text; el.hidden = false;
-}
-function liveFailed(why){
-  liveMsg(why + " You can still open the stream directly in VLC or Safari.");
-  $("liveVid").hidden = true; $("livePlay").hidden = false;
-  $("liveLabel").textContent = "Try again";
-  if (hls){ try { hls.destroy(); } catch (_){} hls = null; }
-}
-function loadHlsJs(){
-  // hls.js only when the browser cannot play HLS itself (that is Safari, which can)
-  if (window.Hls) return Promise.resolve(window.Hls);
-  if (!hlsLoader) hlsLoader = new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = HLS_JS; s.async = true;
-    s.onload = () => window.Hls ? resolve(window.Hls) : reject(new Error("no Hls"));
-    s.onerror = () => reject(new Error("script blocked"));
-    document.head.appendChild(s);
-  }).catch(e => { hlsLoader = null; throw e; });
-  return hlsLoader;
-}
-async function startLive(){
-  const vid = $("liveVid"), src = "/api/stream?cam=" + encodeURIComponent(LIVE_CAM);
-  $("liveLabel").textContent = "Starting…";
-  liveMsg("");
-  try {
-    if (vid.canPlayType("application/vnd.apple.mpegurl")){
-      vid.src = src;                       // Safari and iOS play HLS natively
-    } else {
-      const Hls = await loadHlsJs();
-      if (!Hls.isSupported()) throw new Error("unsupported");
-      hls = new Hls({ liveDurationInfinity: true, lowLatencyMode: false });
-      hls.on(Hls.Events.ERROR, (_, data) => { if (data && data.fatal) liveFailed("The live stream stopped."); });
-      hls.loadSource(src); hls.attachMedia(vid);
-    }
-    $("livePlay").hidden = true; vid.hidden = false;
-    await vid.play().catch(() => {});      // controls are on, so a blocked autoplay is recoverable
-  } catch (e) {
-    liveFailed(e && e.message === "script blocked"
-      ? "Couldn't load the video player."
-      : "Live video isn't available right now.");
-  }
-}
-$("livePoster").src = "/api/snapshot?cam=" + encodeURIComponent(LIVE_CAM) + "&t=" + snapSlot();
-$("livePlay").addEventListener("click", startLive);
-$("liveVid").addEventListener("error", () => liveFailed("Live video isn't available right now."));
-
 function boxW(id){ return Math.max(260, Math.floor($(id).clientWidth - 20)); }
 const scrub = {};
 
@@ -519,26 +448,111 @@ function drawSeries(now){
     "Touch and slide across the chart to compare the cameras at any time.";
 }
 
-const VLINES = [{line:"University Ave", color:"var(--oxford)", dash:""}, {line:"Ramp", color:"var(--oxford)", dash:"7 4"}];
-$("key3").innerHTML = `<span class="kg">Oxford:</span>` + VLINES.map(v => `<span>${swatch(v.color, v.dash)}${esc(v.line)}</span>`).join("");
-function drawVideo(now){
+// Live-video cameras: vehicles passing counting lines (vehicles per hour)
+const VIDEOS = [
+  {id:"university-e-ms7", name:"University Ave E at MS 7", city:"Oxford", color:"var(--oxford)", lines:["University Ave", "Ramp"]},
+  {id:"i10-orleans", name:"I-10 at Orleans Ave", city:"New Orleans", color:"var(--nola)", lines:["I-10"],
+   note:"Louisiana DOTD (Department of Transportation and Development) public camera on the elevated interstate near the French Quarter; both directions combined."}
+];
+$("videos").innerHTML = VIDEOS.map((v, k) => `<section>
+    <div class="head"><h2>Live video: ${esc(v.name)}, ${esc(v.city)}</h2><span class="lede" id="videoNow${k}" style="margin:0"></span></div>
+    <div class="live">
+      <video id="liveVid${k}" playsinline muted controls preload="none" hidden
+             aria-label="Live video from ${esc(v.name)}"></video>
+      <button class="liveplay" id="livePlay${k}" type="button" aria-label="Play the live video from ${esc(v.name)}">
+        <img id="livePoster${k}" alt="" aria-hidden="true" decoding="async" onerror="this.style.display='none'">
+        <span class="liveui"><span class="playdot" aria-hidden="true"></span><span id="liveLabel${k}">Play live video</span></span>
+      </button>
+      <p class="note livemsg" id="liveMsg${k}" hidden role="status"></p>
+    </div>
+    <p class="note">The stream is the agency's own, played through this site; it starts only when you press play. The counts below come from short samples of the same camera, not from this player.</p>
+    <div class="key" id="vkey${k}"><span class="kg">${esc(v.city)}:</span>${v.lines.map((l, j) => `<span>${swatch(v.color, DASHES[j])}${esc(l)}</span>`).join("")}</div>
+    <div class="chart" id="video${k}"></div>
+    <p class="note">Vehicles per hour crossing a counting line on each road, from live video. Unlike the snapshot cameras, this counts vehicles passing, not vehicles in view.${v.note ? " " + esc(v.note) : ""}</p>
+  </section>`).join("");
+
+// Click to play, not autoplay: every segment is served through this site's own
+// /api/stream proxy (the agencies send no CORS (cross-origin resource sharing)
+// headers, so hls.js cannot fetch them cross-origin), which means autoplay would
+// push video for every visitor who ever loads the page. One player per camera.
+const HLS_JS = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
+const hlsFor = [];
+let hlsLoader = null;
+
+function liveMsg(k, text){
+  const el = $("liveMsg" + k);
+  if (!text){ el.hidden = true; el.textContent = ""; return; }
+  el.textContent = text; el.hidden = false;
+}
+function liveFailed(k, why){
+  liveMsg(k, why + " The stream may also be down at the source.");
+  $("liveVid" + k).hidden = true; $("livePlay" + k).hidden = false;
+  $("liveLabel" + k).textContent = "Try again";
+  if (hlsFor[k]){ try { hlsFor[k].destroy(); } catch (_){} hlsFor[k] = null; }
+}
+function loadHlsJs(){
+  // only needed where the browser cannot play HLS itself; Safari and iOS can
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (!hlsLoader) hlsLoader = new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = HLS_JS; el.async = true;
+    el.onload = () => window.Hls ? resolve(window.Hls) : reject(new Error("no Hls"));
+    el.onerror = () => reject(new Error("script blocked"));
+    document.head.appendChild(el);
+  }).catch(e => { hlsLoader = null; throw e; });
+  return hlsLoader;
+}
+async function startLive(k){
+  const v = VIDEOS[k]; if (!v) return;
+  const vid = $("liveVid" + k), src = "/api/stream?cam=" + encodeURIComponent(v.id);
+  $("liveLabel" + k).textContent = "Starting…";
+  liveMsg(k, "");
+  try {
+    if (vid.canPlayType("application/vnd.apple.mpegurl")){
+      vid.src = src;
+    } else {
+      const Hls = await loadHlsJs();
+      if (!Hls.isSupported()) throw new Error("unsupported");
+      const h = new Hls({ liveDurationInfinity: true, lowLatencyMode: false });
+      hlsFor[k] = h;
+      h.on(Hls.Events.ERROR, (_, data) => { if (data && data.fatal) liveFailed(k, "The live stream stopped."); });
+      h.loadSource(src); h.attachMedia(vid);
+    }
+    $("livePlay" + k).hidden = true; vid.hidden = false;
+    await vid.play().catch(() => {});   // controls are on, so a blocked autoplay is recoverable
+  } catch (e) {
+    liveFailed(k, e && e.message === "script blocked"
+      ? "Couldn't load the video player."
+      : "Live video isn't available right now.");
+  }
+}
+VIDEOS.forEach((v, k) => {
+  $("livePoster" + k).src = "/api/snapshot?cam=" + encodeURIComponent(v.id) + "&t=" + snapSlot();
+  $("livePlay" + k).addEventListener("click", () => startLive(k));
+  $("liveVid" + k).addEventListener("error", () => liveFailed(k, "Live video isn't available right now."));
+});
+
+function drawVideo(now){ VIDEOS.forEach((v, k) => drawVideoOne(now, v, k)); }
+function drawVideoOne(now, v, k){
   const d = lastData; if (!d) return;
-  const rows = (d.video || []).filter(r => r.camera === "university-e-ms7"), {span} = WINDOWS[win];
-  const W = boxW("video"), H = W < 500 ? 210 : 240, L = 44, R = 14, T = 12, B = 30, t0 = now - span*1000;
-  const series = VLINES.map(v => ({name: v.line, color: v.color, dash: v.dash, gap: 45*60*1000,
-    pts: rows.filter(r => r.line === v.line).map(r => ({x: new Date(r.t).getTime(), v: Math.round(r.veh / r.secs * 3600), n: r.veh}))}));
-  const all = series.flatMap(s => s.pts);
+  const id = "video" + k;
+  const VLINES = v.lines.map((l, j) => ({line: l, color: v.color, dash: DASHES[j]}));
+  const rows = (d.video || []).filter(r => r.camera === v.id), {span} = WINDOWS[win];
+  const W = boxW(id), H = W < 500 ? 210 : 240, L = 44, R = 14, T = 12, B = 30, t0 = now - span*1000;
+  const series = VLINES.map(x => ({name: x.line, color: x.color, dash: x.dash, gap: 45*60*1000,
+    pts: rows.filter(r => r.line === x.line).map(r => ({x: new Date(r.t).getTime(), v: Math.round(r.veh / r.secs * 3600), n: r.veh}))}));
+  const all = series.flatMap(x => x.pts);
   const last = rows.length ? rows[rows.length - 1].t : null;
-  $("videoNow").textContent = last ? "Latest run " + fmtTime(last) + ": " + series.map(s => { const p = s.pts.filter(q => q.x === new Date(last).getTime())[0]; return s.name + " " + (p ? p.v : "–") + "/hr"; }).join(", ") : "Waiting for the first run";
-  if (!all.length){ $("video").innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No video counts in this window yet.</p>'; scrub.video = null; return; }
+  $("videoNow" + k).textContent = last ? "Latest run " + fmtTime(last) + ": " + series.map(x => { const q = x.pts.filter(y => y.x === new Date(last).getTime())[0]; return x.name + " " + (q ? q.v : "–") + "/hr"; }).join(", ") : "Waiting for the first run";
+  if (!all.length){ $(id).innerHTML = '<p class="note" style="padding:24px 12px;margin:0">No video counts in this window yet.</p>'; scrub[id] = null; return; }
   const ymax = Math.max(100, Math.ceil(Math.max(...all.map(p => p.v)) * 1.15 / 100) * 100);
   const xs = Array.from(new Set(all.map(p => p.x))).sort((a, b) => a - b);
   const ticks = Math.max(2, Math.min(6, Math.floor((W-L-R) / 95)));
   const xLabel = x => { let g = ""; for (let i = 0; i <= ticks; i++){ const t = t0 + span*1000*i/ticks;
     g += `<text x="${x(t)}" y="${H-8}" text-anchor="${i===0?"start":i===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; } return g; };
-  drawLines("video", xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
-  scrub.video.head = v => (win === "7d" ? fmtDay(v) + ", " : "") + fmtTime(v);
-  scrub.video.unit = "vehicles/hr";
+  drawLines(id, xs, series, xLabel, W, H, L, R, T, B, t0, now, ymax);
+  scrub[id].head = t => (win === "7d" ? fmtDay(t) + ", " : "") + fmtTime(t);
+  scrub[id].unit = "vehicles/hr";
 }
 
 function drawHours(){
@@ -604,8 +618,8 @@ function attachScrub(id){
   box.addEventListener("pointercancel", () => { active = false; });
   box.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !active) hideAt(id); });
 }
-attachScrub("chart"); attachScrub("hours"); attachScrub("video");
-document.addEventListener("pointerdown", e => { if (!e.target.closest(".chart")){ hideAt("chart"); hideAt("hours"); hideAt("video"); } });
+attachScrub("chart"); attachScrub("hours"); VIDEOS.forEach((v, k) => attachScrub("video" + k));
+document.addEventListener("pointerdown", e => { if (!e.target.closest(".chart")){ hideAt("chart"); hideAt("hours"); VIDEOS.forEach((v, k) => hideAt("video" + k)); } });
 
 $("seg").addEventListener("click", e => {
   const b = e.target.closest("button[data-w]"); if (!b) return;
