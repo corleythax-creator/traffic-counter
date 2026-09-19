@@ -37,7 +37,8 @@ FALLBACK_ZONE = [(0, 0.25), (1, 0.25), (1, 1), (0, 1)]  # used when a camera vie
 DET_FLOOR = 0.10
 REF_FRAMES = 9          # frames medianed together to build a reference view
 REF_MIN_FRAMES = 5      # below this the median cannot clear the traffic, so wait for a fuller batch
-REF_MAX_AGE_H = 6       # re-base a reference this often, but only while the view checks out as unmoved
+REF_MAX_AGE_H = 6       # routine freshening: re-base a reference that still matches, this often
+REF_RETRY_H = 1         # recovery: how long a reference that has STOPPED matching may persist
 # Counting zones as (x, y) fractions of the image, from the top-left corner
 CAMERAS = {
     "lakeland-treetops":   {"name": "Lakeland Dr S at Treetops Blvd", "stream": "011404", "host": "streamingjxn2",
@@ -321,7 +322,7 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20, keep_images
         # Only decoded when a reference is missing or due to be re-based; the rest of
         # the time reading these frames twice would be wasted work.
         pool = (_ref_pool(out, chunk, REF_FRAMES)
-                if ref is None or ref["age_h"] >= REF_MAX_AGE_H else [])
+                if ref is None or ref["age_h"] >= min(REF_RETRY_H, REF_MAX_AGE_H) else [])
         for r in chunk:
             ms = int(r["epoch_ms"])
             counts = {v: to_int(r.get(v)) for v in VEHICLES.values()}
@@ -344,21 +345,27 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20, keep_images
                             view, zone = None, base_zone
                     elif view in (None, "night") or since_check >= check_every:
                         view, zone = check_view(ref, img); since_check = 0
-                        if ref["age_h"] >= REF_MAX_AGE_H and len(pool) >= REF_MIN_FRAMES:
-                            if view == "same":
+                        if len(pool) >= REF_MIN_FRAMES:
+                            if view == "same" and ref["age_h"] >= REF_MAX_AGE_H:
                                 # Verified unmoved, so re-base on current light and keep
                                 # the zone that was just confirmed to fit.
                                 ref = save_ref(url, key, cam, pool, ref["zone"])
                                 print(f"refreshed reference view from {len(pool)} frames")
-                            elif view == "changed":
-                                # SIFT cannot match across a day/night change however good
-                                # the reference is, so an old reference stops matching at
-                                # dawn and again at dusk. Re-basing only on 'same' left the
-                                # camera stuck: recovery needed a passing check, and the
-                                # check could not pass. Rebuild from what the camera sees
+                            elif view == "changed" and ref["age_h"] >= REF_RETRY_H:
+                                # SIFT cannot match across a change in the light however
+                                # good the reference is, so a reference stops matching a few
+                                # hours after it was built. Rebuild from what the camera sees
                                 # now, with the zone from the code -- the same recovery a
-                                # person would do by deleting the camera_refs row. This
-                                # frame still counts as 'changed'; the next check passes.
+                                # person would do by deleting the camera_refs row. This frame
+                                # still counts as 'changed'; the next check passes.
+                                # Measured Sep 19: references built at 10:09 matched 0 of 9
+                                # frames by 15:00 while a fresh median of those same frames
+                                # matched 9 of 9. At a 6 h threshold three cameras spent that
+                                # whole afternoon on the fallback zone, so recovery gets its
+                                # own, much shorter clock. The cost is that a camera that
+                                # really was re-aimed reads 'changed' for an hour rather than
+                                # six before it becomes its own reference; the fallback zone
+                                # inflates counts every day, a re-aim is rare.
                                 ref = save_ref(url, key, cam, pool, base_zone)
                                 print(f"reference no longer matched; rebuilt from {len(pool)} frames")
                     since_check += 1

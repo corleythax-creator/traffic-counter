@@ -175,7 +175,8 @@ def main():
                     # Re-base an old reference, whether it still matches or not: one left
                     # to go stale is what had this camera skipping every run for an
                     # afternoon, and one that stopped matching cannot recover on its own.
-                    if ref["age_h"] >= upload.REF_MAX_AGE_H and view in ("same", "changed"):
+                    if (view == "same" and ref["age_h"] >= upload.REF_MAX_AGE_H) or \
+                       (view == "changed" and ref["age_h"] >= upload.REF_RETRY_H):
                         snaps = ref_snaps(cam, Path(tmp))
                         if len(snaps) >= upload.REF_MIN_FRAMES:
                             # A confirmed view keeps its zone; one that no longer matches
