@@ -344,12 +344,23 @@ def run_once(out, url, key, model, cam, conf, tiles, check_every=20, keep_images
                             view, zone = None, base_zone
                     elif view in (None, "night") or since_check >= check_every:
                         view, zone = check_view(ref, img); since_check = 0
-                        # Re-base the reference on current light, but only once the view
-                        # has just checked out as unmoved, so a camera that really has
-                        # been re-aimed can never quietly become its own reference.
-                        if view == "same" and ref["age_h"] >= REF_MAX_AGE_H and len(pool) >= REF_MIN_FRAMES:
-                            ref = save_ref(url, key, cam, pool, ref["zone"])
-                            print(f"refreshed reference view from {len(pool)} frames")
+                        if ref["age_h"] >= REF_MAX_AGE_H and len(pool) >= REF_MIN_FRAMES:
+                            if view == "same":
+                                # Verified unmoved, so re-base on current light and keep
+                                # the zone that was just confirmed to fit.
+                                ref = save_ref(url, key, cam, pool, ref["zone"])
+                                print(f"refreshed reference view from {len(pool)} frames")
+                            elif view == "changed":
+                                # SIFT cannot match across a day/night change however good
+                                # the reference is, so an old reference stops matching at
+                                # dawn and again at dusk. Re-basing only on 'same' left the
+                                # camera stuck: recovery needed a passing check, and the
+                                # check could not pass. Rebuild from what the camera sees
+                                # now, with the zone from the code -- the same recovery a
+                                # person would do by deleting the camera_refs row. This
+                                # frame still counts as 'changed'; the next check passes.
+                                ref = save_ref(url, key, cam, pool, base_zone)
+                                print(f"reference no longer matched; rebuilt from {len(pool)} frames")
                     since_check += 1
                 found, brightness = detect(model, img, tiles)
                 counts = {v: 0 for v in VEHICLES.values()}; people = 0

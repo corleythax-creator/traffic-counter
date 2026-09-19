@@ -172,14 +172,18 @@ def main():
                         print("not enough snapshots to set a reference view; counting anyway")
                 else:
                     view, _ = upload.check_view(ref, snap)
-                    # Re-base on current light while the view is confirmed unmoved. A
-                    # reference left to go stale is what put this camera on 'changed'
-                    # for an afternoon, skipping every run.
-                    if view == "same" and ref["age_h"] >= upload.REF_MAX_AGE_H:
+                    # Re-base an old reference, whether it still matches or not: one left
+                    # to go stale is what had this camera skipping every run for an
+                    # afternoon, and one that stopped matching cannot recover on its own.
+                    if ref["age_h"] >= upload.REF_MAX_AGE_H and view in ("same", "changed"):
                         snaps = ref_snaps(cam, Path(tmp))
                         if len(snaps) >= upload.REF_MIN_FRAMES:
-                            upload.save_ref(url, key, ref_key, snaps, ref["zone"])
-                            print("refreshed reference view")
+                            # A confirmed view keeps its zone; one that no longer matches
+                            # falls back to the zone from the code.
+                            upload.save_ref(url, key, ref_key, snaps,
+                                            ref["zone"] if view == "same" else FULL_ZONE)
+                            print("refreshed reference view" if view == "same"
+                                  else "reference no longer matched; rebuilt")
         except Exception as e:
             print(f"view check skipped: {e}")
 
