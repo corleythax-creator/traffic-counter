@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Count vehicles passing counting lines in a short sample of an MDOT live video.
+"""Count vehicles passing counting lines in a short sample of a live traffic video.
 
 Reads the camera's HLS (HTTP Live Streaming) feed directly for a few minutes,
-using every third frame (10 per second), finds moving vehicles by background
+using about 10 frames per second, finds moving vehicles by background
 subtraction (no neural network needed, so it is fast), follows each one from
 frame to frame, and counts it once when it crosses a line drawn across the road.
 Results go to the Supabase table traffic_video_counts, one row per line and
 direction.
 
 Cameras and lines live in cameras.json under "video". Line coordinates are
-pixels in the full 1280x720 video; direction "toward" means moving toward the
-camera side of the line.
+pixels in the full-size video (1280x720 for MDOT); direction "toward" means
+moving toward the camera side of the line. Non-MDOT feeds set "video_url";
+optional per-camera tuning: min_area, min_w, min_h, max_jump, view_check.
 
   python video.py --camera university-e-ms7 --seconds 180
 """
@@ -26,6 +27,14 @@ def load_video_cameras():
 
 
 def snapshot(cam, path):
+    if cam.get("video_url"):  # non-MDOT feeds (e.g. Louisiana DOTD): take a frame from the video itself
+        import cv2
+        cap = cv2.VideoCapture(cam["video_url"], cv2.CAP_FFMPEG)
+        ok, frame = cap.read(); cap.release()
+        if not ok:
+            raise RuntimeError("could not read a frame from the video stream")
+        cv2.imwrite(str(path), cv2.resize(frame, (640, 480)))
+        return
     url = (f"https://{cam['host']}.mdottraffic.com/thumbnail?application=rtplive&streamname={cam['stream']}.stream"
            f"&size=640x480&format=jpg&fitmode=stretch&t={int(time.time() * 1000)}")
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -50,7 +59,7 @@ def count_crossings(cam, seconds):
     ox, oy = cam["crop"][0], cam["crop"][1]
     lines = {name: ((l[0][0] - ox, l[0][1] - oy), (l[1][0] - ox, l[1][1] - oy)) for name, l in cam["lines"].items()}
     counts = {name: {"toward": 0, "away": 0} for name in lines}
-    url = f"https://{cam['host']}.mdottraffic.com/rtplive/{cam['stream']}.stream/playlist.m3u8"
+    url = cam.get("video_url") or f"https://{cam['host']}.mdottraffic.com/rtplive/{cam['stream']}.stream/playlist.m3u8"
     cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
     if not cap.isOpened():
         raise RuntimeError("could not open the video stream")
@@ -62,6 +71,7 @@ def count_crossings(cam, seconds):
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     tracks, next_id, frame_no = {}, 0, 0
     min_area, max_jump = cam.get("min_area", 250), cam.get("max_jump", 45)
+    min_w, min_h = cam.get("min_w", 12), cam.get("min_h", 8)
     raw = 0
     while raw < raw_left:
         ok, full = cap.read()
@@ -81,7 +91,7 @@ def count_crossings(cam, seconds):
         blobs = []
         for c in contours:
             x, y, w, h = cv2.boundingRect(c)
-            if w * h >= min_area and w >= 12 and h >= 8:
+            if w * h >= min_area and w >= min_w and h >= min_h:
                 blobs.append((x + w / 2, y + h / 2))
         used, updated = set(), {}
         for tid, tr in tracks.items():  # match each track to the nearest blob near its predicted spot
@@ -127,6 +137,8 @@ def main():
         snap = Path(tmp) / "snap.jpg"
         view = None
         try:
+            if cam.get("view_check") is False:
+                raise RuntimeError("view check turned off for this camera")
             snapshot(cam, snap)
             if upload._is_night(snap):
                 view = "night"
