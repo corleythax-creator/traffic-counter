@@ -39,7 +39,8 @@ requirements.txt  ultralytics, numpy, pillow (workflow installs CPU torch + open
 dashboard/
   index.html      Main page: one row per camera (thumbnail, now, 5/15/60-min avgs, 15-min
                   sparkline coloured by how far above that camera's own past hour each
-                  minute runs); a row opens to its live video, and for the video cameras
+                  minute runs); a row opens to its live video with, under it, that
+                  camera's own bar chart with a moving average -- or for a video camera
                   its per-line chart. Below: moving-average chart and hour-of-day chart
   camera.html     Per-camera detail page (?cam=<slug>&w=1h|6h|24h|7d), per-minute bars
   api/traffic.js  -> Supabase RPC traffic_dashboard(win)

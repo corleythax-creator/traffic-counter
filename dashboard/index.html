@@ -110,6 +110,16 @@ button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
 .chart text{fill:var(--muted);font-family:inherit;font-size:12px}
 /* infrared stretches: the counts there are a floor, not a reading */
 .sline.night{opacity:.3}
+.chart svg.scrub rect[data-i]{opacity:.35}
+.chart svg.scrub rect.hl{opacity:1}
+.bar.night{opacity:.32}
+.avgline{stroke:var(--ink);stroke-width:1.25;stroke-dasharray:6 4;opacity:.5}
+.maline{stroke:var(--ink);stroke-width:2;fill:none;stroke-linejoin:round;stroke-linecap:round}
+/* a panel-coloured stroke underneath keeps the curve legible over dense bars */
+.macase{stroke:var(--panel);stroke-width:4.5;fill:none;stroke-linejoin:round;stroke-linecap:round;opacity:.85}
+.chart text.maTxt{text-anchor:start}
+.chart text.avgtxt{fill:var(--ink);font-size:11px;font-weight:700;
+  paint-order:stroke;stroke:var(--panel);stroke-width:3.5px;stroke-linejoin:round}
 .guide{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3}
 .tip{position:absolute;top:6px;left:0;background:var(--ink);color:var(--bg);font-size:.85rem;line-height:1.35;
   padding:6px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:2}
@@ -354,7 +364,8 @@ const rowHtml = (c, i) => `
       <p class="pmeta"><span id="s${i}">Loading…</span><span id="p${i}"></span><span id="h${i}"></span>
         <a href="/camera.html?cam=${encodeURIComponent(c.id)}">Minute-by-minute detail</a></p>
       ${c.video ? `<div class="key" id="vkey${i}"></div><div class="chart" id="vchart${i}"></div>
-      <p class="note">Vehicles per hour crossing a counting line on each road, from live video. Unlike the snapshot cameras this counts vehicles passing, not vehicles in view.${c.video.note ? " " + esc(c.video.note) : ""}</p>` : ""}
+      <p class="note">Vehicles per hour crossing a counting line on each road, from live video. Unlike the snapshot cameras this counts vehicles passing, not vehicles in view.${c.video.note ? " " + esc(c.video.note) : ""}</p>`
+      : `<div class="chart" id="rchart${i}"></div><p class="note" id="rnote${i}"></p>`}
     </div>
   </div>`;
 
@@ -486,7 +497,10 @@ function render(d){
     "Lakeland Dr S at Treetops's older frames were counted with an earlier method (whole image only) that misses more vehicles in heavy traffic; new frames use the same method as the other cameras." : "";
   drawSeries(now); drawHours();
   // only an open row has a chart box with a width to draw into
-  CAMS.forEach((c, i) => { if (c.video && !$("pn"+i).hidden) drawVideoOne(now, c, i); });
+  CAMS.forEach((c, i) => {
+    if ($("pn"+i).hidden) return;
+    if (c.video) drawVideoOne(now, c, i); else drawRowChart(now, c, i);
+  });
 }
 
 function boxW(id){ return Math.max(260, Math.floor($(id).clientWidth - 20)); }
@@ -660,7 +674,10 @@ function setRow(i, open){
   panel.hidden = !open;
   if (open){
     $("lposter" + i).src = "/api/snapshot?cam=" + encodeURIComponent(CAMS[i].id) + "&t=" + snapSlot();
-    if (CAMS[i].video && lastData) drawVideoOne(new Date(lastData.now).getTime(), CAMS[i], i);
+    if (lastData){
+      const t = new Date(lastData.now).getTime();
+      if (CAMS[i].video) drawVideoOne(t, CAMS[i], i); else drawRowChart(t, CAMS[i], i);
+    }
   } else stopLive(i);
 }
 CAMS.forEach((c, i) => {
@@ -674,6 +691,155 @@ CAMS.forEach((c, i) => {
   if (c.video) $("vkey" + i).innerHTML = c.video.lines
     .map((l, j) => `<span>${swatch(c.color, DASHES[j])}${esc(l)}</span>`).join("");
 });
+
+// The bar-and-line chart inside an open row: one bar per bucket of that camera's
+// own counts, with the same centred moving average the detail page draws, and the
+// window's average ruled across. Uses the series already in the dashboard payload,
+// so opening a row costs no extra request and the chart follows the window buttons.
+function movingAvg(pts, spanMs, gapMs, x, y){
+  if (pts.length < 3) return {path: "", first: null, last: null};
+  const half = spanMs / 2;
+  let lo = 0, hi = 0, wsum = 0, nsum = 0, d = "", pen = "M", first = null, last = null;
+  for (let i = 0; i < pts.length; i++){
+    const t = pts[i].t;
+    while (hi < pts.length && pts[hi].t <= t + half){ wsum += pts[hi].avg * pts[hi].n; nsum += pts[hi].n; hi++; }
+    while (lo < pts.length && pts[lo].t < t - half){ wsum -= pts[lo].avg * pts[lo].n; nsum -= pts[lo].n; lo++; }
+    if (i && pts[i].t - pts[i-1].t > gapMs) pen = "M";
+    if (!nsum){ pen = "M"; continue; }
+    const v = wsum / nsum;
+    d += `${pen}${x(t).toFixed(1)} ${y(v).toFixed(1)}`; pen = "L";
+    if (!first) first = {t, v};
+    last = {t, v};
+  }
+  return {path: d, first, last};
+}
+
+// The average for the whole window, ruled across the plot. Dashed and neutral so it
+// reads as an annotation rather than another gridline or another bar: it is the
+// level each bar should be compared against.
+function avgRule(v, ymax, geo, label){
+  if (v == null || !(v > 0) || !(ymax > 0)) return {line: "", text: ""};
+  const {L, R, T, ph, W} = geo, yy = T + ph - Math.min(v, ymax) / ymax * ph;
+  const room = yy - T > 15;   // keep the caption inside the plot when the line runs high
+  return {
+    line: `<line class="avgline" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/>`,
+    text: `<text class="avgtxt" x="${W - R}" y="${(room ? yy - 5 : yy + 13).toFixed(1)}" text-anchor="end">${esc(label)}</text>`
+  };
+}
+
+function drawRowChart(now, c, i){
+  const d = lastData; if (!d) return;
+  const id = "rchart" + i, note = $("rnote" + i);
+  if (!$(id)) return;
+  const {bucket, span, label, interval} = WINDOWS[win];
+  const x0 = d.cams[c.id] || {};
+  const t0 = now - span*1000;
+  const pts = (x0.series || [])
+    .map(r => ({t: new Date(r.t).getTime(), avg: Number(r.avg), peak: r.peak, n: r.n,
+                night: (r.night || 0) * 2 > r.n}))
+    .filter(r => !isNaN(r.avg) && r.t >= t0);
+  barScrub[id] = null;
+  if (!pts.length){
+    $(id).innerHTML = `<p class="note" style="padding:24px 12px;margin:0">No frames in the last ${esc(interval)}.</p>`;
+    note.textContent = ""; return;
+  }
+  const W = boxW(id), H = W < 500 ? 200 : 230, L = 40, R = 14, T = 12, B = 30;
+  const pw = W - L - R, ph = H - T - B;
+  const ymax = Math.max(1, Math.ceil(Math.max(...pts.map(p => p.avg)) * 1.15 * 2) / 2);
+  const x = t => L + (t - t0) / (span*1000) * pw, y = v => T + ph - v / ymax * ph;
+  const slot = bucket * 1000 / (span*1000) * pw;
+  const bw = Math.max(1, slot > 3 ? slot - 1.5 : slot);
+  let g = "";
+  for (let k = 0; k <= 4; k++){ const v = ymax * k / 4, yy = y(v);
+    g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--rule)" stroke-width="1"/>` +
+         `<text x="${L-6}" y="${yy+4}" text-anchor="end">${v % 1 ? v.toFixed(1) : v}</text>`; }
+  const ticks = Math.max(2, Math.min(6, Math.floor(pw / 95)));
+  for (let k = 0; k <= ticks; k++){ const t = t0 + span*1000 * k / ticks;
+    g += `<text x="${x(t)}" y="${H-8}" text-anchor="${k===0?"start":k===ticks?"end":"middle"}">${esc(win === "7d" ? fmtDayShort(t) : fmtTime(t))}</text>`; }
+  const maxAvg = Math.max(...pts.map(p => p.avg));
+  let bars = ""; const meta = [];
+  pts.forEach((p, k) => {
+    const top = y(p.avg), h = Math.max(p.avg > 0 ? 1.5 : 0, T + ph - top);
+    const fill = p.avg === maxAvg && maxAvg > 0 ? "var(--c2)" : c.color;
+    bars += `<rect class="bar${p.night ? " night" : ""}" data-i="${k}" x="${x(p.t).toFixed(1)}" y="${(T+ph-h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" rx="1"/>`;
+    meta.push({cx: x(p.t) + bw/2,
+      head: (win === "7d" ? fmtDay(p.t) + ", " : "") + fmtTime(p.t),
+      body: p.avg.toFixed(2) + " avg vehicles, peak " + p.peak + ", " + p.n + (p.n === 1 ? " frame" : " frames") + (p.night ? " (infrared)" : "")});
+  });
+  const frames = pts.reduce((sum, p) => sum + p.n, 0);
+  const periodAvg = x0.avg != null ? Number(x0.avg)
+    : frames ? pts.reduce((sum, p) => sum + p.avg * p.n, 0) / frames : null;
+  const rule = periodAvg == null ? {line: "", text: ""}
+    : avgRule(periodAvg, ymax, {L, R, T, ph, W}, win + " avg " + periodAvg.toFixed(2));
+  const maMin = smoothingMinutes(span, bucket);
+  const ma = movingAvg(pts, maMin * 60000, bucket * 1000 * 3, x, y);
+  const maCurve = !ma.path ? "" : `<path class="macase" d="${ma.path}"/><path class="maline" d="${ma.path}"/>`;
+  const maText = !ma.path ? "" :
+    `<text class="avgtxt maTxt" x="${L + 2}" y="${(y(ma.first.v) - 8 < T ? y(ma.first.v) + 14 : y(ma.first.v) - 8).toFixed(1)}">${esc(smoothingLabel(maMin) + " moving avg")}</text>`;
+  const guide = `<line class="guide" x1="0" x2="0" y1="${T}" y2="${T+ph}" visibility="hidden"/>`;
+  // every line painted before every label, so no annotation cuts through a caption
+  $(id).innerHTML = `<div class="tip" hidden></div><svg viewBox="0 0 ${W} ${H}" role="img" ` +
+    `aria-label="${esc(camLabel(c) + ": average vehicles per frame " + label + " over the last " + interval)}">` +
+    `${g}${bars}${maCurve}${rule.line}${maText}${rule.text}${guide}</svg>`;
+  barScrub[id] = {W, bars: meta};
+  attachBarScrub(id);
+  const best = pts.find(p => p.avg === maxAvg);
+  note.textContent = "Each bar is the average vehicles per frame " + label +
+    (periodAvg == null ? ". " : "; the dashed line is this window's average, " + periodAvg.toFixed(2) + ". ") +
+    (ma.path ? "The solid line is a " + smoothingLabel(maMin) + " moving average, which is the shape to read rather than any single bar. " : "") +
+    "Busiest: " + (win === "7d" ? fmtDay(best.t) + " " : "") + fmtTime(best.t) + " at " + best.avg.toFixed(2) +
+    " (highlighted). " +
+    // only say this when there is infrared in view: bars also dim under the pointer,
+    // and explaining a fade that is not there just confuses the two
+    (pts.some(p => p.night) ? "The palest bars are infrared, where the model detects far less than is really there. " : "") +
+    "Touch and slide to read each bar; gaps mean no frames were captured.";
+}
+
+// Bars need their own scrub: the line charts match on a shared x value, a bar chart
+// picks the nearest bar and highlights it.
+const barScrub = {};
+const barScrubbing = new Set();
+function showBar(id, i){
+  const st = barScrub[id], box = $(id);
+  if (!st || !box) return;
+  const svg = box.querySelector(":scope > svg"), tip = box.querySelector(".tip");
+  if (!svg || !tip || !st.bars[i]) return;
+  const b = st.bars[i];
+  svg.classList.add("scrub");
+  svg.querySelectorAll("rect.hl").forEach(r => r.classList.remove("hl"));
+  const rect = svg.querySelector(`rect[data-i="${i}"]`); if (rect) rect.classList.add("hl");
+  const gl = svg.querySelector(".guide"); gl.setAttribute("x1", b.cx); gl.setAttribute("x2", b.cx); gl.setAttribute("visibility", "visible");
+  tip.textContent = ""; const st1 = document.createElement("strong"); st1.textContent = b.head; tip.append(st1, b.body);
+  tip.hidden = false;
+  const r = svg.getBoundingClientRect(), br = box.getBoundingClientRect();
+  const px = r.left - br.left + b.cx * r.width / st.W, tw = tip.offsetWidth;
+  tip.style.left = Math.min(Math.max(4, px - tw/2), br.width - tw - 4) + "px";
+}
+function hideBar(id){
+  const box = $(id); if (!box) return;
+  const svg = box.querySelector(":scope > svg"), tip = box.querySelector(".tip");
+  if (svg){ svg.classList.remove("scrub"); svg.querySelectorAll("rect.hl").forEach(r => r.classList.remove("hl"));
+    const gl = svg.querySelector(".guide"); if (gl) gl.setAttribute("visibility", "hidden"); }
+  if (tip) tip.hidden = true;
+}
+function attachBarScrub(id){
+  if (barScrubbing.has(id)) return;    // row charts redraw on every open and refresh
+  barScrubbing.add(id);
+  const box = $(id); let active = false;
+  const pick = e => {
+    const st = barScrub[id], svg = box.querySelector(":scope > svg");
+    if (!st || !svg || !st.bars.length) return;
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * st.W / r.width;
+    let best = 0, bd = Infinity;
+    st.bars.forEach((b, i) => { const dd = Math.abs(b.cx - sx); if (dd < bd){ bd = dd; best = i; } });
+    showBar(id, best);
+  };
+  box.addEventListener("pointerdown", e => { if (!barScrub[id]) return; active = true; try { box.setPointerCapture(e.pointerId); } catch(_){} pick(e); });
+  box.addEventListener("pointermove", e => { if (active || e.pointerType === "mouse") pick(e); });
+  box.addEventListener("pointerup", () => { active = false; });
+  box.addEventListener("pointercancel", () => { active = false; });
+  box.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !active) hideBar(id); });
+}
 
 function drawVideoOne(now, c, i){
   const d = lastData; if (!d) return;
@@ -765,7 +931,9 @@ function attachScrub(id){
 }
 attachScrub("chart"); attachScrub("hours");
 document.addEventListener("pointerdown", e => {
-  if (!e.target.closest(".chart")) scrubbing.forEach(id => { if ($(id)) hideAt(id); });
+  if (e.target.closest(".chart")) return;
+  scrubbing.forEach(id => { if ($(id)) hideAt(id); });
+  barScrubbing.forEach(id => { if ($(id)) hideBar(id); });
 });
 
 $("seg").addEventListener("click", e => {
@@ -780,7 +948,10 @@ new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => {
   if (!lastData) return;
   const t = new Date(lastData.now).getTime();
   drawSeries(t); drawHours();
-  CAMS.forEach((c, i) => { if (c.video && !$("pn"+i).hidden) drawVideoOne(t, c, i); });
+  CAMS.forEach((c, i) => {
+    if ($("pn"+i).hidden) return;
+    if (c.video) drawVideoOne(t, c, i); else drawRowChart(t, c, i);
+  });
 }, 120); }).observe(document.querySelector("main"));
 setInterval(() => { if (document.visibilityState === "visible") load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - lastOk > 60000) load(); });
