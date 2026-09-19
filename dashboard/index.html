@@ -103,6 +103,19 @@ button:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
 .tip svg{width:26px;height:8px;display:inline-block;vertical-align:middle;margin-right:6px}
 .tip[hidden]{display:none}
 .note{font-size:.88rem;color:var(--muted);margin-top:8px;max-width:75ch}
+.live{position:relative;margin-bottom:10px}
+.live video{display:block;width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;border:1px solid var(--rule)}
+.liveplay{display:block;width:100%;aspect-ratio:16/9;position:relative;padding:0;overflow:hidden;
+  border:1px solid var(--rule);border-radius:10px;background:#12151A;cursor:pointer}
+.liveplay img{display:block;width:100%;height:100%;object-fit:cover;opacity:.7}
+.liveplay:hover img{opacity:.85}
+.liveui{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;
+  font:inherit;font-size:1rem;font-weight:600;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.playdot{width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.55);border:2px solid #fff;flex:none;
+  display:inline-block;position:relative}
+.playdot::after{content:"";position:absolute;top:50%;left:54%;transform:translate(-50%,-50%);
+  border-left:14px solid #fff;border-top:9px solid transparent;border-bottom:9px solid transparent}
+.live video[hidden],.liveplay[hidden],.livemsg[hidden]{display:none}
 .msg{margin-top:16px;padding:12px 14px;border-left:4px solid var(--warn);background:var(--panel);border-radius:0 8px 8px 0}
 .msg[hidden]{display:none}
 .msg strong{display:block}
@@ -137,6 +150,16 @@ footer p + p{margin-top:8px}
 
   <section>
     <div class="head"><h2>Live video: University Ave E at MS 7, Oxford</h2><span class="lede" id="videoNow" style="margin:0"></span></div>
+    <div class="live">
+      <video id="liveVid" playsinline muted controls preload="none" hidden
+             aria-label="Live video from University Ave E at MS 7"></video>
+      <button class="liveplay" id="livePlay" type="button" aria-label="Play the live video from University Ave E at MS 7">
+        <img id="livePoster" alt="" aria-hidden="true" decoding="async" onerror="this.style.display='none'">
+        <span class="liveui"><span class="playdot" aria-hidden="true"></span><span id="liveLabel">Play live video</span></span>
+      </button>
+      <p class="note livemsg" id="liveMsg" hidden role="status"></p>
+    </div>
+    <p class="note">The stream is MDOT's own, played through this site; it starts only when you press play. Counts below come from short samples of the same camera, not from this player.</p>
     <div class="key" id="key3"></div>
     <div class="chart" id="video"></div>
     <p class="note">Vehicles per hour crossing a counting line on each road, from about 3.5 minutes of live video every 15 minutes. Unlike the snapshot cameras, this counts vehicles passing, not vehicles in view.</p>
@@ -356,6 +379,63 @@ function render(d){
   CAMS.forEach((c, i) => { const t = $("t"+i); if (t) t.src = "/api/snapshot?cam=" + encodeURIComponent(c.id) + "&t=" + snapSlot(); });
   drawSeries(now); drawHours(); drawVideo(now);
 }
+
+// ---- live video ----------------------------------------------------------
+// Click to play rather than autoplay: every segment is served through this site's
+// own proxy, so an autoplaying stream would push video for every visitor who ever
+// loads the page. The poster is the same snapshot the cards use, already cached.
+const LIVE_CAM = "university-e-ms7";
+const HLS_JS = "https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js";
+let hlsLoader = null, hls = null;
+
+function liveMsg(text){
+  const el = $("liveMsg");
+  if (!text){ el.hidden = true; el.textContent = ""; return; }
+  el.textContent = text; el.hidden = false;
+}
+function liveFailed(why){
+  liveMsg(why + " You can still open the stream directly in VLC or Safari.");
+  $("liveVid").hidden = true; $("livePlay").hidden = false;
+  $("liveLabel").textContent = "Try again";
+  if (hls){ try { hls.destroy(); } catch (_){} hls = null; }
+}
+function loadHlsJs(){
+  // hls.js only when the browser cannot play HLS itself (that is Safari, which can)
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (!hlsLoader) hlsLoader = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = HLS_JS; s.async = true;
+    s.onload = () => window.Hls ? resolve(window.Hls) : reject(new Error("no Hls"));
+    s.onerror = () => reject(new Error("script blocked"));
+    document.head.appendChild(s);
+  }).catch(e => { hlsLoader = null; throw e; });
+  return hlsLoader;
+}
+async function startLive(){
+  const vid = $("liveVid"), src = "/api/stream?cam=" + encodeURIComponent(LIVE_CAM);
+  $("liveLabel").textContent = "Starting…";
+  liveMsg("");
+  try {
+    if (vid.canPlayType("application/vnd.apple.mpegurl")){
+      vid.src = src;                       // Safari and iOS play HLS natively
+    } else {
+      const Hls = await loadHlsJs();
+      if (!Hls.isSupported()) throw new Error("unsupported");
+      hls = new Hls({ liveDurationInfinity: true, lowLatencyMode: false });
+      hls.on(Hls.Events.ERROR, (_, data) => { if (data && data.fatal) liveFailed("The live stream stopped."); });
+      hls.loadSource(src); hls.attachMedia(vid);
+    }
+    $("livePlay").hidden = true; vid.hidden = false;
+    await vid.play().catch(() => {});      // controls are on, so a blocked autoplay is recoverable
+  } catch (e) {
+    liveFailed(e && e.message === "script blocked"
+      ? "Couldn't load the video player."
+      : "Live video isn't available right now.");
+  }
+}
+$("livePoster").src = "/api/snapshot?cam=" + encodeURIComponent(LIVE_CAM) + "&t=" + snapSlot();
+$("livePlay").addEventListener("click", startLive);
+$("liveVid").addEventListener("error", () => liveFailed("Live video isn't available right now."));
 
 function boxW(id){ return Math.max(260, Math.floor($(id).clientWidth - 20)); }
 const scrub = {};

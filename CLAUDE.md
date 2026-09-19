@@ -36,11 +36,14 @@ cameras.json      Extra/overriding cameras, "sample" list for GitHub, "video" ca
 requirements.txt  ultralytics, numpy, pillow (workflow installs CPU torch + opencv-python-headless)
 .github/workflows/sample.yml   Cron */15, 14-min timeout, secrets SUPABASE_URL / SUPABASE_KEY
 dashboard/
-  index.html      Main page: city groups, camera cards (thumbnail, now, 5/15/60-min avgs), charts
+  index.html      Main page: city groups, camera cards (thumbnail, now, 5/15/60-min avgs), live-video player, charts
   camera.html     Per-camera detail page (?cam=<slug>&w=1h|6h|24h|7d), per-minute bars
   api/traffic.js  -> Supabase RPC traffic_dashboard(win)
   api/camera.js   -> Supabase RPC traffic_camera(cam, win)
   api/snapshot.js -> proxies the MDOT thumbnail for a camera (15 s CDN cache)
+  api/stream.js   -> proxies the HLS live stream (playlist rewritten so segments
+                     come back through this endpoint; only cameras in its own CAMS,
+                     only bare filenames inside that camera's stream directory)
 docs/schema.sql   Database objects used by this project (reference, not a migration)
 ```
 
