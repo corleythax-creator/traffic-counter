@@ -24,7 +24,8 @@ const CAMS = {
   "university-e-ms7": "https://streamingjxn4.mdottraffic.com/rtplive/060205.stream/",
 };
 // Normalised once, because new URL() lower-cases the host: a mixed-case base here
-// would stop matching the resolved segment URLs and nothing would be rewritten.
+// would stop matching the resolved segment URLs and nothing would be rewritten. That
+// bit an earlier non-MDOT feed whose host was mixed case; keep it for the next one.
 const BASES = Object.fromEntries(Object.entries(CAMS).map(([k, v]) => [k, new URL(v).href]));
 
 const NAME = /^[A-Za-z0-9._-]{1,120}$/;          // one filename, no slashes, no ".."
