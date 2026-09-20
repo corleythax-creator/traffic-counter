@@ -6,6 +6,8 @@ Snapshot cameras are counted with YOLO11 (You Only Look Once) medium at 960 pixe
 
 Public dashboard: https://traffic-counter-dashboard.vercel.app
 
+The owner's private home cameras are a separate project (`home-cameras`) and are not part of this repository.
+
 ## Scripts
 
 - `sample.py`: one sampling run for GitHub Actions (captures each camera for `SAMPLE_MINUTES`, then counts and uploads)
@@ -16,10 +18,24 @@ Public dashboard: https://traffic-counter-dashboard.vercel.app
 
 The two collectors write the same tables, tagged by `source` (`local` or `github`). Before each scheduled run, `sample.py` skips any camera that an always-on computer has covered in the last 10 minutes, so GitHub acts as a backup with no config change.
 
+## Running on the desktop
+
+Use a git clone (not a ZIP download) so updates are one command:
+
+```
+git clone https://github.com/corleythax-creator/traffic-counter.git C:\TrafficCounter
+cd C:\TrafficCounter
+python -m pip install ultralytics tzdata
+# create .env with SUPABASE_URL and SUPABASE_KEY (service role key)
+python run_local.py
+```
+
+After that, `run_local.bat` pulls the latest code and starts the collector.
+
 ## Configuration
 
 Cameras sampled on GitHub are `SAMPLE_CAMERAS` in `sample.py` plus the `"sample"` list in `cameras.json`. New cameras and zone overrides go in `cameras.json`.
 
 Required repository secrets: `SUPABASE_URL`, `SUPABASE_KEY` (service role key).
 
-See `CLAUDE.md` for the full camera list, counting method, database schema, and the steps for adding a camera.
+See `CLAUDE.md` for the full camera list, counting method, database schema, and the steps for adding a camera, and `docs/HANDOFF.md` for status, open items and a handoff prompt.

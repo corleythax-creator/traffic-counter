@@ -2,6 +2,8 @@
 -- Reference snapshot, not a migration. Dump live definitions with:
 --   select pg_get_functiondef('public.traffic_dashboard(text)'::regprocedure);
 --   select pg_get_functiondef('public.traffic_camera(text,text)'::regprocedure);
+-- The same database also holds the separate home-cameras project's homecam_* tables and
+-- homecam storage bucket (documented in that project) and unrelated land-records tables.
 
 create table public.traffic_frames (
   camera          text not null,
@@ -46,7 +48,7 @@ create table public.traffic_video_counts (
   started_at  timestamptz not null,
   seconds     real not null,                -- video analysed; 0 when skipped
   line        text not null,
-  direction   text not null,                -- toward | away (relative to the camera); home cameras use their own direction names
+  direction   text not null,                -- toward | away (relative to the camera)
   vehicles    int,                          -- null when the camera view had changed
   view_status text,
   source      text,
@@ -92,37 +94,3 @@ alter table public.camera_refs enable row level security;
 
 -- Manual cleanup helper (not scheduled; detections are kept indefinitely by choice):
 --   public.purge_old_traffic_detections(keep_days int default 30) returns bigint
-
--- ---------------------------------------------------------------------------------------
--- Home cameras (cam_view.py --cloud; private page dashboard/home.html). Created Sep 19 2026.
--- Written with the service-role key by the desktop; read only by the Vercel routes in
--- dashboard/api/homecam/, which sign short-lived storage links after a password sign-in.
-
--- Private storage bucket: latest/<camera>.jpg (overwritten every ~2 s) and
--- events/<camera>/<date>/<time>/{thumb,00001..}.jpg (motion events, deleted after --keep-days).
--- insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
---   values ('homecam', 'homecam', false, 5242880, array['image/jpeg']);
-
-create table public.homecam_status (
-  camera      text primary key,
-  updated_at  timestamptz not null,
-  width       int,
-  height      int,
-  motion      boolean,
-  level_pct   real,
-  trigger_pct real
-);
-
-create table public.homecam_events (
-  id          text primary key,             -- <camera>/<YYYY-MM-DD>/<HHMMSS>
-  camera      text not null,
-  start_at    timestamptz not null,
-  end_at      timestamptz not null,
-  frames      int not null,                 -- web pictures uploaded (2.5 per second)
-  peak_pct    real
-);
-create index homecam_events_camera_start_idx on public.homecam_events (camera, start_at desc);
-
--- No policies: only the service-role key can touch these.
-alter table public.homecam_status enable row level security;
-alter table public.homecam_events enable row level security;
