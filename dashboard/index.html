@@ -192,8 +192,7 @@ footer p + p{margin-top:8px}
 <script>
 const TZ = "America/Chicago";
 // Cameras are grouped by city: one color per group, a different line style per camera
-const GROUPS = [{name:"Jackson", color:"var(--jackson)"}, {name:"Oxford", color:"var(--oxford)"},
-                {name:"New Orleans", color:"var(--nola)"}];
+const GROUPS = [{name:"Jackson", color:"var(--jackson)"}, {name:"Oxford", color:"var(--oxford)"}];
 const DASHES = ["", "7 4", "2 4", "10 4 2 4"];
 // Snapshot cameras and live-video cameras share one list, because on the page they
 // are one list of rows. `video` marks the ones counted by line crossings instead of
@@ -206,9 +205,7 @@ const CAMS = [
   {id:"university-w-lamar",   a:"University W",    b:"at Lamar",          group:"Oxford"},
   {id:"lamar-n-university",   a:"Lamar Blvd N",    b:"at University Ave", group:"Oxford"},
   {id:"university-e-ms7",     a:"University Ave E", b:"at MS 7",          group:"Oxford",
-   video:{lines:["University Ave", "Ramp"]}},
-  {id:"i10-orleans",          a:"I-10",            b:"at Orleans Ave",    group:"New Orleans",
-   video:{lines:["I-10"], note:"Louisiana DOTD (Department of Transportation and Development) public camera on the elevated interstate near the French Quarter; both directions combined."}}
+   video:{lines:["University Ave", "Ramp"]}}
 ];
 const SNAPS = CAMS.filter(c => !c.video);   // the cameras the two charts below plot
 GROUPS.forEach(g => CAMS.filter(c => c.group === g.name).forEach((c, k) => {
