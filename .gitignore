@@ -3,3 +3,23 @@ cam_data/
 .env
 *.pt
 __pycache__/
+
+# home cameras (cam_view.py): per-camera data and local settings, never committed
+motion/
+snapshots/
+reading_crops/
+motion_heat.npz
+counts.csv
+others.csv
+speeds.csv
+features.csv
+readings.csv
+counting.json
+settings.json
+readings.json
+labels.json
+notes.json
+reviewed.json
+corrections.json
+cameras.env
+*.local.ps1
