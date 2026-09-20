@@ -1,6 +1,6 @@
 # Traffic counter
 
-Counts vehicles (and, roughly, people) on public MDOT (Mississippi Department of Transportation) traffic cameras in Jackson and Oxford, Mississippi, plus one Louisiana DOTD (Department of Transportation and Development) camera in New Orleans, stores every count in Supabase, and shows it on a public Vercel dashboard.
+Counts vehicles (and, roughly, people) on public MDOT (Mississippi Department of Transportation) traffic cameras in Jackson and Oxford, Mississippi, stores every count in Supabase, and shows it on a public Vercel dashboard.
 
 The owner also runs two private home cameras with a separate local script, `cam_view.py`. They are documented in `docs/HOME_CAMERAS.md`; the short version is in "Home cameras" below.
 
@@ -75,10 +75,9 @@ Video URL: `https://{host}.mdottraffic.com/rtplive/{stream}.stream/playlist.m3u8
 | `university-w-lamar` | University W at Lamar | 060204 | streamingjxn4 | Oxford | snapshot | upload.py |
 | `lamar-n-university` | Lamar Blvd N at University Ave (PTZ) | 060202 | streamingjxn4 | Oxford | snapshot | cameras.json |
 | `university-e-ms7` | University Ave E at MS 7 (PTZ) | 060205 | streamingjxn4 | Oxford | video | cameras.json "video" |
-| `i10-orleans` | I-10 at Orleans Ave | nor-cam-113 | Louisiana DOTD 511LA (`video_url`) | New Orleans | video, `view_check: false` | cameras.json "video" |
 | `lakeland-n-treetops` | Lakeland Dr N at Treetops Blvd | 011403 | streamingjxn2 | Jackson | defined, not collected | upload.py |
 
-`i10-orleans` skips the camera-move check because its night and day views are too different to match; if the camera is re-aimed, its counts drift without warning, so look at it by eye now and then.
+A New Orleans camera (`i10-orleans`, Louisiana DOTD 511LA nor-cam-113) was added Sep 19 2026 and removed Sep 20 at the owner's request. Its past rows may still be in `traffic_video_counts` and `camera_refs` (`video:i10-orleans`); nothing reads them.
 
 Finding a stream ID: MDOT's mobile site lists sites at `https://mobile.mdottraffic.com/listCamLogicalSites.aspx?sublocationid=<n>`, but the stream ID is not in the page. The reliable way is to probe `streamname=0XXXYY` thumbnails and OCR (optical character recognition) or read the name overlay at the bottom of the image.
 
@@ -166,6 +165,8 @@ Add a snapshot camera:
 
 Add a video camera: add under cameras.json "video" with `crop` [x, y, w, h] in 1280x720 pixels and `lines` {name: [[x1,y1],[x2,y2]]} drawn across each road. Direction "toward" = crossing toward the camera side of the line. Validate by making a contact sheet of every counted crossing from a 1 to 2 minute clip. Then add it to `dashboard/index.html` CAMS with a `video: {lines: [...]}` key, and to `dashboard/api/stream.js` CAMS so the player can reach it.
 
+Remove a camera: take it out of every list under "Camera slugs appear in several places" above, and of `cameras.json`. Leave its database rows unless the owner asks for them to be deleted; the dashboard only shows cameras in its own CAMS list. A city group in `dashboard/index.html` GROUPS with no cameras left is skipped automatically.
+
 Change a dashboard query: edit the SQL function in Supabase (keep it security definer, read-only, `grant execute ... to anon`), then the page. `dashboard/api/*.js` only forwards to the RPC with a short CDN cache.
 
 Preview the dashboard: serve `dashboard/` and mock `/api/*`, or render with Playwright against the live API responses.
@@ -192,6 +193,7 @@ Full detail in `docs/HOME_CAMERAS.md`. Essentials:
 - Night is not "rougher", it is close to blind on the cameras that switch to infrared. Measured Sep 18: `lakeland-n-airport` went from 16.6 detections/frame in colour to 0.34 in infrared (98% loss), `lakeland-treetops` 10.4 to 2.6 (75%). The Oxford cameras never switched to infrared that night and held steady, so Jackson-vs-Oxford after dark is not a like-for-like comparison. `DET_FLOOR` is already 0.10 and there is nothing there to find, so lowering the confidence threshold does not recover it; only a model that handles infrared, or a motion-based counter like `video.py`, would. `view_status = 'night'` marks these frames and the dashboard fades them.
 - `view_status = 'changed'` means the frame was counted with `FALLBACK_ZONE` (lower 75%), which is looser than a drawn zone and reads high: on Sep 18 the drawn zones kept 60-87% of detections where the fallback kept 81-99%. Before checking anything else, confirm the camera has actually moved by eye: single-frame references made this status mostly false. Measured Sep 19 on unmoved views, single-frame reference vs median-of-9: `jackson-e-fraternity` 10-15 inliers against a cutoff of 15 (passing 4 of 10 frames) became 71-147 (10 of 10), and every other camera improved 2-5x. Over the preceding 6 hours that flapping had put `jackson-e-fraternity` on the fallback zone for 83% of frames and the other three non-infrared cameras for 29% each, with no camera having moved. References re-base themselves on the two clocks above, so a `changed` run lasting much more than an hour means either a reference younger than `REF_RETRY_H` (a real move, still inside its grace period) or a collector that is not running the current code. Deleting the `camera_refs` row still forces an immediate rebuild from the code's base zone.
 - Earlier Claude-hosted dashboards (claude.ai artifacts) read Supabase through the owner's connector; the Vercel dashboard is the maintained one.
+- The GitHub connector used by Claude cannot write files under `.github/workflows/` (403 from GitHub); workflow changes have to be made by the owner or through a clone with a personal token.
 
 ## Keeping documentation current
 
