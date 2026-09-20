@@ -2,11 +2,12 @@
 
 Counts vehicles (and, roughly, people) on public MDOT (Mississippi Department of Transportation) traffic cameras in Jackson and Oxford, Mississippi, stores every count in Supabase, and shows it on a public Vercel dashboard.
 
-The owner also runs two private home cameras with a separate local script, `cam_view.py`. They are documented in `docs/HOME_CAMERAS.md`; the short version is in "Home cameras" below.
+The owner's private home cameras are a separate project (`home-cameras`, private repository). Nothing from it belongs here; the two only share the Supabase database.
 
 - Public dashboard: https://traffic-counter-dashboard.vercel.app (Vercel project `traffic-counter-dashboard`, root directory `dashboard/`, auto-deploys on push to `main`)
-- Database: Supabase project `fuel-model` (ref `wcrsomethkjlfhhuurmh`, Pro plan). It also holds unrelated land-records tables; only touch the `traffic_*`, `camera_refs` and `homecam_*` objects and the `homecam` storage bucket.
+- Database: Supabase project `fuel-model` (ref `wcrsomethkjlfhhuurmh`, Pro plan). It also holds unrelated land-records tables and the home project's `homecam_*` tables; only touch the `traffic_*` and `camera_refs` objects.
 - Repo: `corleythax-creator/traffic-counter` (public)
+- Status, open items and a handoff prompt: `docs/HANDOFF.md`
 
 ## How it runs
 
@@ -45,20 +46,14 @@ dashboard/
                   camera's own bar chart with a moving average -- or for a video camera
                   its per-line chart. Below: moving-average chart and hour-of-day chart
   camera.html     Per-camera detail page (?cam=<slug>&w=1h|6h|24h|7d), per-minute bars
-  home.html       PRIVATE home-camera page (password sign-in; not linked from index.html,
-                  noindex). Needs Vercel env SUPABASE_SERVICE_KEY + HOMECAM_PASSWORD
   api/traffic.js  -> Supabase RPC traffic_dashboard(win)
   api/camera.js   -> Supabase RPC traffic_camera(cam, win)
   api/snapshot.js -> proxies the MDOT thumbnail for a camera (15 s CDN cache)
   api/stream.js   -> proxies the HLS live stream for every camera (playlist rewritten so
                      segments come back through this endpoint; only cameras in its own
                      CAMS, only bare filenames inside that camera's stream directory)
-  api/homecam/    login.js (password -> signed HttpOnly cookie, 30 days), data.js (status,
-                  latest picture and events as signed storage links), event.js (one event's
-                  pictures). All answer 401 without the cookie and 503 until configured
-  lib/homecam.js  Shared helpers for those routes (cookie signing, Supabase, signed URLs)
 docs/schema.sql   Database objects used by this project (reference, not a migration)
-docs/HOME_CAMERAS.md  Home cameras: network, cameras, cam_view.py features, files, troubleshooting
+docs/HANDOFF.md   Status, open items, handoff prompt
 ```
 
 ## Cameras
@@ -77,7 +72,7 @@ Video URL: `https://{host}.mdottraffic.com/rtplive/{stream}.stream/playlist.m3u8
 | `university-e-ms7` | University Ave E at MS 7 (PTZ) | 060205 | streamingjxn4 | Oxford | video | cameras.json "video" |
 | `lakeland-n-treetops` | Lakeland Dr N at Treetops Blvd | 011403 | streamingjxn2 | Jackson | defined, not collected | upload.py |
 
-A New Orleans camera (`i10-orleans`, Louisiana DOTD 511LA nor-cam-113) was added Sep 19 2026 and removed Sep 20 at the owner's request. Its past rows may still be in `traffic_video_counts` and `camera_refs` (`video:i10-orleans`); nothing reads them.
+A New Orleans camera (`i10-orleans`, Louisiana DOTD (Department of Transportation and Development) 511LA nor-cam-113) was added Sep 19 2026 and removed Sep 20 at the owner's request. Its past rows may still be in `traffic_video_counts` and `camera_refs` (`video:i10-orleans`); nothing reads them.
 
 Finding a stream ID: MDOT's mobile site lists sites at `https://mobile.mdottraffic.com/listCamLogicalSites.aspx?sublocationid=<n>`, but the stream ID is not in the page. The reliable way is to probe `streamname=0XXXYY` thumbnails and OCR (optical character recognition) or read the name overlay at the bottom of the image.
 
@@ -120,6 +115,8 @@ of being built, on any ordinary afternoon.
 
 A reference younger than `REF_RETRY_H` is never re-based, so a camera that really has been re-aimed stays visibly `changed` rather than quietly becoming its own reference -- for an hour rather than six. That is the trade: the fallback zone inflates counts every day, a re-aim is rare, and an hour of `changed` frames still shows in the data and on the row. A batch with fewer than `REF_MIN_FRAMES` (5) usable frames is skipped rather than medianed, so a reference is never built from one or two frames.
 
+The Oxford video camera stays in colour at night, so it does not get the `night` exemption: expect up to an hour of "camera view changed; not counting this run" around dusk and dawn until recovery rebuilds its reference (seen Sep 19 at 22:13). `run_local.py` paces those skipped runs to one per 5-minute window; an older unzipped copy on the desktop that re-ran them back-to-back was replaced on Sep 20.
+
 The zone in `camera_refs` is what both collectors use. To redraw a zone for a re-aimed camera, update `camera_refs` (new ref image + zone) and also update the base zone in `upload.py`/`cameras.json` so any future reference saves use it. Deleting a `camera_refs` row makes the next full daylight batch the new reference with the code's base zone.
 
 ## Database
@@ -128,13 +125,12 @@ See `docs/schema.sql`. Main objects:
 
 - `traffic_frames`: one row per frame, PK `(camera, epoch_ms)`. Counts, `people`, `model`, `view_status`, `source`, `brightness`, `conf_threshold`.
 - `traffic_detections`: one row per detected object, PK `(camera, epoch_ms, idx)`, FK to frames. Box coordinates are 0-1 fractions. Kept indefinitely by the owner's choice (about 45 MB/day at full coverage).
-- `traffic_video_counts`: PK `(camera, started_at, line, direction)`. Rate per hour = `vehicles / seconds * 3600`. Home cameras can also write here with `cam_view.py --upload-counts` (off by default), using their own camera id and direction names.
+- `traffic_video_counts`: PK `(camera, started_at, line, direction)`. Rate per hour = `vehicles / seconds * 3600`. The home-cameras project can optionally write its own rows here under its own camera ids (`home`, `cam2`); the dashboard ignores ids not in its CAMS list.
 - `camera_refs`: reference view + zone per camera.
-- `homecam_status`, `homecam_events` and the private storage bucket `homecam`: written only by `cam_view.py --cloud` (off by default), read only by the private `home.html` routes.
 - RPC functions for the dashboard (security definer, read-only, granted to `anon`): `traffic_dashboard(win)` and `traffic_camera(cam, win)`.
 - `purge_old_traffic_detections(keep_days)`: manual cleanup only; the pg_cron job was removed on purpose.
 
-Security model: collectors write with the service-role key. The public dashboard only has the publishable key, which can call the two RPC functions and cannot read tables (RLS (row-level security) is on with no policies). The private home page's routes use the service-role key on the server only, after a password check, and hand the browser signed storage links that expire in 15-60 minutes.
+Security model: collectors write with the service-role key. The dashboard only has the publishable key, which can call the two RPC functions and cannot read tables (RLS (row-level security) is on with no policies).
 
 History notes: before Sep 18 2026 ~5 PM Central, `lakeland-treetops` was recorded continuously by an older script with `yolo11n.pt`, whole image, 0.35 cutoff and no zone (`model = 'yolo11n.pt'`, `source` null). Its counts run low compared with later rows; the dashboard shows a note when the latest frame is from that model.
 
@@ -142,9 +138,8 @@ History notes: before Sep 18 2026 ~5 PM Central, `lakeland-treetops` was recorde
 
 - Local `.env` next to the scripts (never commit): `SUPABASE_URL=https://wcrsomethkjlfhhuurmh.supabase.co`, `SUPABASE_KEY=<service_role key>`. `load_env()` tolerates UTF-16/BOM files and invisible characters, which happened on Windows.
 - GitHub Actions secrets: `SUPABASE_URL`, `SUPABASE_KEY`.
-- Vercel env: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (publishable key; safe to expose, RPC-only). For the private home page only: `SUPABASE_SERVICE_KEY` (secret; server-side only) and `HOMECAM_PASSWORD`. Not set yet as of Sep 20 2026, so `home.html` answers "Not set up yet".
+- Vercel env: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (publishable key; safe to expose, RPC-only).
 - `TRAFFIC_SOURCE` env var sets the `source` tag (`sample.py` sets `github`; default `local`).
-- Home camera addresses include the camera login (`rtsp://USER:PASSWORD@IP:554/...`). They belong in the local start script or `CAM_URL`, never in committed files.
 
 ## Common tasks
 
@@ -171,17 +166,6 @@ Change a dashboard query: edit the SQL function in Supabase (keep it security de
 
 Preview the dashboard: serve `dashboard/` and mock `/api/*`, or render with Playwright against the live API responses.
 
-## Home cameras
-
-Full detail in `docs/HOME_CAMERAS.md`. Essentials:
-
-- Two Dahua PoE cameras on a private link from a PoE switch to the desktop's Ethernet port (PC 192.168.1.10, no gateway; cameras 192.168.1.110 "Street" and 192.168.1.169 "Camera 2"). They have no internet access, on purpose.
-- `cam_view.py` runs one process per camera (ports 8080 and 8081, shown as tabs) and keeps all data in the folder it starts from. `start_cameras.bat` -> `start_cameras.ps1` starts both.
-- Street: counting line, speed lines, YOLO nano check at each crossing (people, bicycles, animals logged separately), motion recordings, snapshots, one activity table with relabel icons and text labels, learning panel with suggested rules and ignore areas.
-- Camera 2: `--readings --no-count --no-record`; reads an LCD temperature/humidity every 30 s with a seven-segment reader into `readings.csv`.
-- `cam_view.py` is not in this repo yet; the desktop has hand-copied versions. Moving it into the repo (for example `home/`) with a git clone on the desktop is the first item under "Best practices" in the home cameras doc.
-- Dahua cameras lock their login for ~30 minutes after repeated failures; `cam_view.py` backs off so it cannot trigger that itself.
-
 ## Constraints and gotchas
 
 - GitHub Actions job timeout is 14 minutes with a 15-minute cron and a concurrency group; runs can start late. Keep `SAMPLE_MINUTES` plus counting inside that.
@@ -193,11 +177,11 @@ Full detail in `docs/HOME_CAMERAS.md`. Essentials:
 - Night is not "rougher", it is close to blind on the cameras that switch to infrared. Measured Sep 18: `lakeland-n-airport` went from 16.6 detections/frame in colour to 0.34 in infrared (98% loss), `lakeland-treetops` 10.4 to 2.6 (75%). The Oxford cameras never switched to infrared that night and held steady, so Jackson-vs-Oxford after dark is not a like-for-like comparison. `DET_FLOOR` is already 0.10 and there is nothing there to find, so lowering the confidence threshold does not recover it; only a model that handles infrared, or a motion-based counter like `video.py`, would. `view_status = 'night'` marks these frames and the dashboard fades them.
 - `view_status = 'changed'` means the frame was counted with `FALLBACK_ZONE` (lower 75%), which is looser than a drawn zone and reads high: on Sep 18 the drawn zones kept 60-87% of detections where the fallback kept 81-99%. Before checking anything else, confirm the camera has actually moved by eye: single-frame references made this status mostly false. Measured Sep 19 on unmoved views, single-frame reference vs median-of-9: `jackson-e-fraternity` 10-15 inliers against a cutoff of 15 (passing 4 of 10 frames) became 71-147 (10 of 10), and every other camera improved 2-5x. Over the preceding 6 hours that flapping had put `jackson-e-fraternity` on the fallback zone for 83% of frames and the other three non-infrared cameras for 29% each, with no camera having moved. References re-base themselves on the two clocks above, so a `changed` run lasting much more than an hour means either a reference younger than `REF_RETRY_H` (a real move, still inside its grace period) or a collector that is not running the current code. Deleting the `camera_refs` row still forces an immediate rebuild from the code's base zone.
 - Earlier Claude-hosted dashboards (claude.ai artifacts) read Supabase through the owner's connector; the Vercel dashboard is the maintained one.
-- The GitHub connector used by Claude cannot write files under `.github/workflows/` (403 from GitHub); workflow changes have to be made by the owner or through a clone with a personal token.
+- The GitHub connector used by Claude cannot write files under `.github/workflows/` or create repositories (403 from GitHub); those have to be done by the owner.
 
 ## Keeping documentation current
 
-Update this file, `docs/schema.sql` and `docs/HOME_CAMERAS.md` in the same change as the code whenever a camera, database object, environment variable, command-line option or data file is added, renamed or removed. Record measurements that drove a decision (as above) so later changes do not undo them by accident.
+Update this file, `docs/schema.sql` and `docs/HANDOFF.md` in the same change as the code whenever a camera, database object, environment variable or command-line option is added, renamed or removed. Record measurements that drove a decision (as above) so later changes do not undo them by accident.
 
 ## Style for user-facing text
 
