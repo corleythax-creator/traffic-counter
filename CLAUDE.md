@@ -44,8 +44,14 @@ dashboard/
                   sparkline coloured by how far above that camera's own past hour each
                   minute runs); a row opens to its live video with, under it, that
                   camera's own bar chart with a moving average -- or for a video camera
-                  its per-line chart. Below: moving-average chart and hour-of-day chart
+                  its per-line chart. Below: moving-average chart and hour-of-day chart.
+                  Top right: an "Add to Home Screen" button, shown only where it can do
+                  something (see "Home-screen install" below)
   camera.html     Per-camera detail page (?cam=<slug>&w=1h|6h|24h|7d), per-minute bars
+  manifest.webmanifest  Web app manifest: name, icons, standalone display, start_url /
+  icon-512.png icon-192.png  Manifest icons
+  apple-touch-icon.png  iOS home-screen icon (180 px)
+  icon-64.png favicon-32.png  Button thumbnail and browser-tab icon
   api/traffic.js  -> Supabase RPC traffic_dashboard(win)
   api/camera.js   -> Supabase RPC traffic_camera(cam, win)
   api/snapshot.js -> proxies the MDOT thumbnail for a camera (15 s CDN cache)
@@ -77,6 +83,28 @@ A New Orleans camera (`i10-orleans`, Louisiana DOTD (Department of Transportatio
 Finding a stream ID: MDOT's mobile site lists sites at `https://mobile.mdottraffic.com/listCamLogicalSites.aspx?sublocationid=<n>`, but the stream ID is not in the page. The reliable way is to probe `streamname=0XXXYY` thumbnails and OCR (optical character recognition) or read the name overlay at the bottom of the image.
 
 Camera slugs appear in several places that must stay in sync when adding or renaming a camera: `upload.py` CAMERAS or `cameras.json`, `run_local.py` SNAPSHOT_CAMS (plus cameras.json "sample"), `sample.py` SAMPLE_CAMERAS (plus cameras.json "sample"), `dashboard/index.html` CAMS, `dashboard/camera.html` CAMERAS, `dashboard/api/snapshot.js` CAMS, `dashboard/api/stream.js` CAMS. In `dashboard/index.html` CAMS, snapshot and video cameras are one list; a `video` key (with its `lines`) marks the ones counted by line crossings, and `SNAPS` is what the two charts plot.
+
+## Home-screen install
+
+The dashboard is installable: `manifest.webmanifest` plus the icons above make it
+open full screen with its own icon. Both pages carry the icon and manifest links;
+the button lives on `index.html` only.
+
+The button is hidden by default and appears only when it can actually do something:
+
+- Chrome and Edge fire `beforeinstallprompt`, which is captured (and its default
+  mini-infobar suppressed) so the button can open the real install prompt on a
+  click. A prompt can only be used once, so the button hides after it is used.
+- iOS Safari has no such API, so there the button reveals the two taps instead
+  (Share, then Add to Home Screen). Chrome and Firefox skins on iOS are excluded:
+  they cannot add to the home screen either, and the Safari wording would be wrong.
+- Anything else gets no button rather than one that does nothing.
+- Already installed gets no button: `display-mode: standalone` is the signal on
+  Android and Chrome, `navigator.standalone` on iOS. `appinstalled` hides it too.
+
+To change the icon, replace the PNGs from one square source image (512, 192, 180
+for Apple, 64 for the button, 32 for the tab) and keep the names. Check the 32 px
+version before committing: it is small enough that a detailed picture turns to mush.
 
 ## Counting method (upload.py)
 

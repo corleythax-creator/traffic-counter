@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Jackson and Oxford traffic cameras</title>
 <meta name="description" content="Live vehicle counts from MDOT traffic cameras">
+<link rel="icon" href="/favicon-32.png" sizes="32x32">
+<link rel="icon" href="/icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#E9EBE6">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16191B">
+<meta name="apple-mobile-web-app-title" content="Traffic">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet">
@@ -37,6 +44,23 @@ h1{font-size:1.35rem;font-weight:800;margin:0 0 4px}
 h2{font-size:1.15rem;font-weight:800;margin:0}
 p{margin:0}
 .lede{color:var(--muted);font-size:.95rem;margin-bottom:16px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+/* the lede's own gap would stack with the flex gap once the button wraps below it */
+.top .lede{margin-bottom:0}
+/* Hidden until the browser says it can install, or we know how to tell the reader
+   to do it by hand. Never shown once the app is already installed. */
+.install{display:none;align-items:center;gap:9px;font:inherit;font-size:.9rem;font-weight:600;
+  color:var(--ink);background:var(--panel);border:1px solid var(--rule);border-radius:10px;
+  padding:6px 12px 6px 6px;cursor:pointer;flex:none}
+.install[data-show]{display:inline-flex}
+.install:hover{background:var(--hover)}
+.install:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
+.install img{width:30px;height:30px;border-radius:7px;display:block;flex:none}
+.howto{margin-top:10px;padding:12px 14px;background:var(--panel);border:1px solid var(--rule);
+  border-radius:10px;font-size:.9rem;max-width:46ch}
+.howto[hidden]{display:none}
+.howto b{display:block;margin-bottom:4px}
+.howto kbd{font:inherit;font-weight:700;border:1px solid var(--rule);border-radius:4px;padding:0 4px}
 
 /* One row per camera: thumbnail, name, the numbers, and a 15-minute sparkline.
    Column labels live in a single header strip rather than on every row, which is
@@ -152,8 +176,17 @@ footer p + p{margin-top:8px}
 </head>
 <body>
 <main>
-  <h1>Traffic cameras</h1>
-  <p class="lede" id="lede">Loading the latest counts…</p>
+  <div class="top">
+    <div>
+      <h1>Traffic cameras</h1>
+      <p class="lede" id="lede">Loading the latest counts…</p>
+    </div>
+    <button class="install" id="install" type="button">
+      <img src="/icon-64.png" alt="" width="30" height="30" decoding="async">
+      <span id="installLabel">Add to Home Screen</span>
+    </button>
+  </div>
+  <div class="howto" id="howto" hidden></div>
 
   <div id="cams"></div>
   <div class="msg" id="msg" hidden role="status"><strong id="msgTitle"></strong><span id="msgBody"></span></div>
@@ -425,6 +458,55 @@ function onKeyClick(e){
 $("key1").addEventListener("click", onKeyClick);
 $("key2").addEventListener("click", onKeyClick);
 renderKeys();
+
+// "Add to Home Screen". Chrome and Edge fire beforeinstallprompt and hand us a
+// prompt we can open on a click; iOS Safari has no such API, so there the button
+// spells out the two taps instead. Anything else gets no button at all rather than
+// one that cannot do anything. Already installed (launched from the home screen)
+// also gets no button: standalone display mode is the reliable signal on Android
+// and Chrome, navigator.standalone the iOS one.
+let installPrompt = null;
+const installed = () => (window.matchMedia && matchMedia("(display-mode: standalone)").matches)
+  || navigator.standalone === true;
+// iPhone/iPad only, and not a Chrome or Firefox skin of it (those cannot add to the
+// home screen on iOS either, but they do not take the Safari instructions)
+const iosSafari = () => {
+  const ua = navigator.userAgent;
+  const ios = /iPad|iPhone|iPod/.test(ua)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);  // iPadOS reports as Mac
+  return ios && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+};
+
+function showInstall(label){
+  const b = $("install");
+  if (!b || installed()) return;
+  $("installLabel").textContent = label;
+  b.setAttribute("data-show", "");
+}
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();               // keep Chrome's own mini-infobar out of the way
+  installPrompt = e;
+  showInstall("Add to Home Screen");
+});
+window.addEventListener("appinstalled", () => {
+  installPrompt = null;
+  $("install").removeAttribute("data-show");
+  $("howto").hidden = true;
+});
+if ($("install")) $("install").addEventListener("click", async () => {
+  if (installPrompt){
+    const p = installPrompt; installPrompt = null;    // a prompt can only be used once
+    $("install").removeAttribute("data-show");
+    try { await p.prompt(); } catch (_) { showInstall("Add to Home Screen"); }
+    return;
+  }
+  const h = $("howto");
+  h.hidden = !h.hidden;
+  if (!h.hidden) h.innerHTML = '<b>Add this to your home screen</b>' +
+    'Tap the Share button at the bottom of Safari, then <kbd>Add to Home Screen</kbd>. ' +
+    'It opens full screen with its own icon.';
+});
+if (iosSafari()) showInstall("Add to Home Screen");
 
 function showMsg(t, b){ $("msgTitle").textContent = t; $("msgBody").textContent = b || ""; $("msg").hidden = false; }
 function hideMsg(){ $("msg").hidden = true; }

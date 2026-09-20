@@ -2,16 +2,16 @@
 
 ## Status (Sep 20 2026)
 
-Running: seven MDOT (Mississippi Department of Transportation) cameras (two in Jackson, five in Oxford; one of the Oxford cameras counted from live video), collected by the owner's desktop (`run_local.py`) with GitHub Actions (`sample.py`, every 15 minutes) as the automatic backup. Counts go to Supabase project `fuel-model`; the public dashboard is https://traffic-counter-dashboard.vercel.app. The New Orleans camera was removed on Sep 20.
+Running: seven MDOT (Mississippi Department of Transportation) cameras (two in Jackson, five in Oxford; one of the Oxford cameras counted from live video), collected by the owner's desktop (`run_local.py`) with GitHub Actions (`sample.py`, every 15 minutes) as the automatic backup. Counts go to Supabase project `fuel-model`; the public dashboard is https://traffic-counter-dashboard.vercel.app. The New Orleans camera was removed on Sep 20. The dashboard is installable to a phone or desktop home screen (manifest plus icons; the button at the top right appears only where it can do something).
 
 ## Open items, most important first
 
-1. Desktop: replace the unzipped copy in `Downloads\Traffic Count\traffic-counter-main` with a git clone (see README "Running on the desktop"), so `run_local.bat` can update itself. The unzipped copy was running old code on Sep 20 (it re-ran the video counter back-to-back instead of pacing).
+1. Desktop: the clone is running current code as of Sep 20 22:15 -- four references re-based themselves under the 1-hour recovery clock, and the video counter paced correctly afterwards, neither of which the unzipped copy could do. Delete the old `Downloads\Traffic Count\traffic-counter-main` folder so it cannot be started again by mistake; it was the one re-running the video counter back-to-back earlier that evening.
 2. Night counting: Jackson cameras switch to infrared and the model misses most vehicles (75-98% fewer detections). Options: an infrared-capable model, or motion-based counting like `video.py` for those cameras.
 3. The video camera pauses for up to an hour at dusk and dawn while its reference view re-bases (a daylight reference cannot match a night view). Acceptable for now; a separate night reference would remove the gap.
 4. Consider `yolo11x` at 1280 px for the Lakeland cameras' dense queues (about 25-30% more cars, about 5x slower).
 5. Dashboard ideas not yet built: "compared to normal" for each camera, and a day-by-hour heat map.
-6. Old New Orleans rows remain in `traffic_video_counts` and `camera_refs` (`video:i10-orleans`); delete them only if the owner asks.
+6. Old New Orleans rows remain in `traffic_video_counts` (139 counted windows, 20,082 vehicles); delete them only if the owner asks. There is no `camera_refs` row for it. On Sep 20 the 816 rows with `vehicles is null` -- skipped runs, no measurement in them -- were deleted at the owner's request; all 1,202 counted rows and 35,598 vehicles were verified unchanged.
 
 ## Prompt for whoever takes this over
 
