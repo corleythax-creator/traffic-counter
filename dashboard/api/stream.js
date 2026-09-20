@@ -22,7 +22,6 @@ const CAMS = {
   "university-w-lamar": "https://streamingjxn4.mdottraffic.com/rtplive/060204.stream/",
   "lamar-n-university": "https://streamingjxn4.mdottraffic.com/rtplive/060202.stream/",
   "university-e-ms7": "https://streamingjxn4.mdottraffic.com/rtplive/060205.stream/",
-  "i10-orleans": "https://ITSStreamingNO.dotd.la.gov/public/nor-cam-113.streams/",
 };
 // Normalised once, because new URL() lower-cases the host: a mixed-case base here
 // would stop matching the resolved segment URLs and nothing would be rewritten.

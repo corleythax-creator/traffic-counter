@@ -20,14 +20,6 @@
       "name": "University Ave E at MS 7", "stream": "060205", "host": "streamingjxn4",
       "crop": [160, 240, 880, 360],
       "lines": {"University Ave": [[433, 485], [487, 355]], "Ramp": [[617, 420], [753, 360]]}
-    },
-    "i10-orleans": {
-      "name": "I-10 at Orleans Ave (New Orleans)",
-      "source_agency": "Louisiana DOTD 511LA camera nor-cam-113",
-      "video_url": "https://ITSStreamingNO.dotd.la.gov/public/nor-cam-113.streams/playlist.m3u8",
-      "crop": [100, 40, 252, 200],
-      "lines": {"I-10": [[150, 150], [320, 150]]},
-      "min_area": 60, "min_w": 7, "min_h": 5, "max_jump": 30, "view_check": false
     }
   }
 }
