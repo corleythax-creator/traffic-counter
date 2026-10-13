@@ -4,6 +4,8 @@
 
 Running: seven MDOT (Mississippi Department of Transportation) cameras (two in Jackson, five in Oxford; one of the Oxford cameras counted from live video), collected by the owner's desktop (`run_local.py`) with GitHub Actions (`sample.py`, every 15 minutes) as the automatic backup. Counts go to Supabase project `fuel-model`; the public dashboard is https://traffic-counter-dashboard.vercel.app. The New Orleans camera was removed on Sep 20. The dashboard is installable to a phone or desktop home screen (manifest plus icons; the button at the top right appears only where it can do something).
 
+Oct 12 2026: the dashboard was down (every API call returned 502) because `traffic_dashboard` took 12 s against the `anon` role's 3 s timeout. The collectors were fine throughout. Fixed in the database: the `traffic_hour_stats` rollup table and trigger, both functions rewritten to read it, two covering indexes, `work_mem = 32MB` on both functions. The rollup was verified row for row against a full recount (3,537 hourly rows, 658,998 frames), and the new function's output was identical to the old one for every window. Every window answers in under 1 s as `anon`. See the 3-second gotcha in `CLAUDE.md`.
+
 ## Open items, most important first
 
 1. Desktop: the clone is running current code as of Sep 20 22:15 -- four references re-based themselves under the 1-hour recovery clock, and the video counter paced correctly afterwards, neither of which the unzipped copy could do. Delete the old `Downloads\Traffic Count\traffic-counter-main` folder so it cannot be started again by mistake; it was the one re-running the video counter back-to-back earlier that evening.
